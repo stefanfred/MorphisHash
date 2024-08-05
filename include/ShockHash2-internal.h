@@ -82,6 +82,7 @@ namespace shockhash {
                 for (size_t i = 0; i < leafSize; i++) {
                     uint64_t hash = ::util::remix(keys.at(i) + currentSeed);
                     seedCache.hashes[i] = ::util::fastrange64(hash, (leafSize + 1) / 2);
+                    std::cout << keys.at(i)<<" "<<uint64_t (seedCache.hashes[i])<<" "<<currentSeed<<std::endl;
                     taken |= 1ul << seedCache.hashes[i];
                 }
                 if (taken == MASK_HALF<leafSize>) {
@@ -589,9 +590,6 @@ namespace shockhash {
                             addCand(other.hashes[i], true);
                         }
 
-                        /*if (retrieved == 0) {
-                            result = CandidateFinder::hash(key, seed1) + leafSize / 2;
-                        }*/
 
                         // gauss
                         std::bitset<leafSize> usedrow{};
@@ -643,11 +641,12 @@ namespace shockhash {
                             continue;
                         }
                         for (int i = 0; i < leafSize; ++i) {
-                            std::cout << keys[i] <<" "<< parity(keys[i] & uint64_t(res & row_mask))<<" "<<std::to_string(newCandidateShifted.hashes[i])<< " "<<std::to_string(other.hashes[i])<<std::endl;
+                            std::cout << keys[i] <<" "<< (parity(keys[i] & uint64_t(res & row_mask)) ? std::to_string(newCandidateShifted.hashes[i]) : std::to_string(other.hashes[i]))<<" "<<std::to_string(newCandidateShifted.hashes[i])<<" "<<std::to_string(other.hashes[i])<< " "<<seed1<<" "<<seed2<<  std::endl;
+                            std::cout<<(CandidateFinder::hash(keys[i], seed1))<<" "<<CandidateFinder::hash(keys[i], seed2)<<std::endl;
                         }
                         std::cout<<fullSeed<<" "<<uint64_t(res & row_mask)<<std::endl;
-                        return fullSeed;
-                        //return (fullSeed << matrix_width) | res;
+                        //return fullSeed;
+                        return (fullSeed << matrix_width) | res;
                     } else {
                         return fullSeed;
                     }
@@ -659,8 +658,12 @@ namespace shockhash {
 
         static inline void constructRetrieval(const std::vector<uint64_t> &keys, size_t seed,
                                               std::vector<std::pair<uint64_t, uint8_t>> &retrieval) {
-            auto [seed1, seed2] = unpairTriangular(seed);
-            shockhash::TinyBinaryCuckooHashTable table(leafSize);
+            for (uint64_t key: keys) {
+                retrieval.emplace_back(key, uint8_t(parity(key & uint64_t(seed & row_mask))));
+            }
+
+            //auto [seed1, seed2] = unpairTriangular(seed>>12);
+            /*shockhash::TinyBinaryCuckooHashTable table(leafSize);
             for (uint64_t key: keys) {
                 table.prepare(shockhash::HashedKey(key));
             }
@@ -684,17 +687,21 @@ namespace shockhash {
 
             for (size_t k = 0; k < leafSize; k++) {
                 std::cout << retrieval[k].first<<" "<< uint64_t(retrieval[k].second)<< std::endl;
-            }
+            }*/
         }
 
         static inline size_t hash(size_t seed, uint64_t key, uint64_t retrieved) {
             auto [seed1, seed2] = unpairTriangular(seed);
+
             size_t result;
             if (retrieved == 0) {
                 result = CandidateFinder::hash(key, seed1) + leafSize / 2;
             } else {
                 result = CandidateFinder::hash(key, seed2);
             }
+            std::cout << key <<" "<< result<<" "<<(CandidateFinder::hash(key, seed1))<<" "<<CandidateFinder::hash(key, seed2)<<" "<<seed1<<" "<<seed2<< std::endl;
+
+
             assert(result <= leafSize);
             return result;
         }

@@ -233,21 +233,15 @@ static const int MAX_LEAF_SIZE2 = 138;
             }
 
             const auto b = reader.readNext(golomb_param(m));
-            size_t seed = b >> 12;
-
-            // Begin: difference to RecSplit.
-            return cum_keys + shockhash2query(m, b, hash.second, ribbon.retrieve(hash.second));
-/*
-            static constexpr int matrix_width = LEAF_SIZE - 2;
+            static constexpr int matrix_width = 12;
             static constexpr __uint128_t row_mask = (__uint128_t(1) << matrix_width) - 1;
-            uint64_t retrievalVec = (b & row_mask);
-            uint64_t retrieved = parity(retrievalVec & hash.second);
+            uint64_t retrieved = parity(b & row_mask & hash.second);
             size_t seed = b >> matrix_width;
             std::cout << hash.second << " " << retrieved << " " <<
                       (cum_keys + shockhash2query(m, seed, hash.second, 0)) << " "
                       << (cum_keys + shockhash2query(m, seed, hash.second, 1))
                       << std::endl;
-            return cum_keys + shockhash2query(m, seed, hash.second, retrieved);*/
+            return cum_keys + shockhash2query(m, seed, hash.second, retrieved);
             // End: difference to RecSplit.
         }
 

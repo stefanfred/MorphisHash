@@ -43,7 +43,7 @@ inline size_t dispatchLeafSize(size_t param, std::vector<uint64_t> &leafKeys,
 
 size_t shockhash2construct(size_t param, std::vector<uint64_t> &leafKeys,
                         std::vector<std::pair<uint64_t, uint8_t>> &ribbonInput) {
-    return dispatchLeafSize<128>(param, leafKeys, ribbonInput);
+    return dispatchLeafSize<100>(param, leafKeys, ribbonInput);
 }
 
 }

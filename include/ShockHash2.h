@@ -20,6 +20,7 @@
 #include <sux/function/RecSplit.hpp>
 #include <SimpleRibbon.h>
 #include <Sorter.hpp>
+#include <bitset>
 #include "ShockHash.h"
 #include "ShockHash2-precompiled.h"
 #include "RiceBitVector.h"
@@ -29,93 +30,102 @@ static const int MAX_LEAF_SIZE2 = 138;
 
 // Optimal Golomb-Rice parameters for leaves. See golombMemoTuner.cpp.
 // Note that uneven leaf sizes are less efficient in ShockHash2.
-static constexpr uint8_t bij_memo2[MAX_LEAF_SIZE2 + 1] = {
-         0,  0,  0,  0,  0,  0,  1,  3,  2,  4, // 0..9
-         4,  6,  5,  7,  6,  8,  7,  8,  7,  9, // 10..19
-         8, 10,  9, 11, 10, 11, 11, 12, 11, 13, // 20..29
-        12, 14, 13, 14, 14, 15, 14, 16, 15, 17, // 30..39
-        16, 18, 17, 18, 17, 19, 18, 20, 19, 21, // 40..49
-        20, 22, 21, 22, 22, 23, 22, 24, 23, 25, // 50..59
-        24, 26, 25, 27, 26, 27, 27, 28, 27, 29, // 60..69
-        28, 30, 29, 31, 30, 32, 31, 33, 32, 33, // 70..79
-        33, 34, 33, 35, 34, 36, 35, 37, 36, 38, // 80..89
-        37, 39, 38, 40, 38, 40, 40, 41, 40, 42, // 90..99
-        41, 43, 42, 44, 43, 45, 44, 45, 45, 47, // 100..109
-        46, 47, 46, 48, 47, 49, 48, 50, 49, 51, // 110..119
-        50, 52, 51, 53, 52, 54, 53, 54, 54, 55, // 120..129
-        54, 56, 55, 58, 56, 58, 56, 59, 58, // 130..138
-};
+    static constexpr uint8_t bij_memo2[MAX_LEAF_SIZE2 + 1] = {
+            0, 0, 0, 0, 0, 0, 1, 3, 2, 4, // 0..9
+            4, 6, 5, 7, 6, 8, 7, 8, 7, 9, // 10..19
+            8, 10, 9, 11, 10, 11, 11, 12, 11, 13, // 20..29
+            12, 14, 13, 14, 14, 15, 14, 16, 15, 17, // 30..39
+            16, 18, 17, 18, 17, 19, 18, 20, 19, 21, // 40..49
+            20, 22, 21, 22, 22, 23, 22, 24, 23, 25, // 50..59
+            24, 26, 25, 27, 26, 27, 27, 28, 27, 29, // 60..69
+            28, 30, 29, 31, 30, 32, 31, 33, 32, 33, // 70..79
+            33, 34, 33, 35, 34, 36, 35, 37, 36, 38, // 80..89
+            37, 39, 38, 40, 38, 40, 40, 41, 40, 42, // 90..99
+            41, 43, 42, 44, 43, 45, 44, 45, 45, 47, // 100..109
+            46, 47, 46, 48, 47, 49, 48, 50, 49, 51, // 110..119
+            50, 52, 51, 53, 52, 54, 53, 54, 54,
+            55, 54, 56, 55, 58, 56, 58, 56, 59, 58, // 130..138*/
+    };
 
-template <size_t LEAF_SIZE> class SplittingStrategy2 {
+    template<size_t LEAF_SIZE>
+    class SplittingStrategy2 {
     public:
         static constexpr size_t _leaf = LEAF_SIZE;
         static_assert(_leaf >= 1);
         static_assert(_leaf <= MAX_LEAF_SIZE2);
         static constexpr size_t lower_aggr = _leaf * 4;
         static constexpr size_t upper_aggr = lower_aggr * 3;
-};
+    };
 
 // Generates the precomputed table of 32-bit values holding the Golomb-Rice code
 // of a splitting (upper 5 bits), the number of nodes in the associated subtree
 // (following 11 bits) and the sum of the Golomb-Rice codelengths in the same
 // subtree (lower 16 bits).
 
-template <size_t LEAF_SIZE> static constexpr void _fill_golomb_rice2(const size_t m, array<uint64_t, MAX_BUCKET_SIZE> *memo) {
-    array<long, MAX_FANOUT> k{0};
+    template<size_t LEAF_SIZE>
+    static constexpr void _fill_golomb_rice2(const size_t m, array<uint64_t, MAX_BUCKET_SIZE> *memo) {
+        array<long, MAX_FANOUT> k{0};
 
-    constexpr size_t lower_aggr = SplittingStrategy2<LEAF_SIZE>::lower_aggr;
-    constexpr size_t upper_aggr = SplittingStrategy2<LEAF_SIZE>::upper_aggr;
+        constexpr size_t lower_aggr = SplittingStrategy2<LEAF_SIZE>::lower_aggr;
+        constexpr size_t upper_aggr = SplittingStrategy2<LEAF_SIZE>::upper_aggr;
 
-    size_t fanout = 0, unit = 0;
-    if (m > upper_aggr) { // High-level aggregation (fanout 2)
-        unit = upper_aggr * (uint16_t(m / 2 + upper_aggr - 1) / upper_aggr);
-        fanout = 2;
-    } else if (m > lower_aggr) { // Second-level aggregation
-        unit = lower_aggr;
-        fanout = uint16_t(m + lower_aggr - 1) / lower_aggr;
-    } else { // First-level aggregation
-        unit = LEAF_SIZE;
-        fanout = uint16_t(m + LEAF_SIZE - 1) / LEAF_SIZE;
+        size_t fanout = 0, unit = 0;
+        if (m > upper_aggr) { // High-level aggregation (fanout 2)
+            unit = upper_aggr * (uint16_t(m / 2 + upper_aggr - 1) / upper_aggr);
+            fanout = 2;
+        } else if (m > lower_aggr) { // Second-level aggregation
+            unit = lower_aggr;
+            fanout = uint16_t(m + lower_aggr - 1) / lower_aggr;
+        } else { // First-level aggregation
+            unit = LEAF_SIZE;
+            fanout = uint16_t(m + LEAF_SIZE - 1) / LEAF_SIZE;
+        }
+
+        k[fanout - 1] = m;
+        for (size_t i = 0; i < fanout - 1; ++i) {
+            k[i] = unit;
+            k[fanout - 1] -= k[i];
+        }
+
+        double sqrt_prod = 1;
+        for (size_t i = 0; i < fanout; ++i) sqrt_prod *= sqrt(k[i]);
+
+        const double p = sqrt(m) / (pow(2 * M_PI, (fanout - 1.) / 2) * sqrt_prod);
+        uint64_t golomb_rice_length = ceil(log2(-log((sqrt(5) + 1) / 2) / log1p(-p))); // log2 Golomb modulus
+
+        assert(golomb_rice_length <= 0x1F); // Golomb-Rice code, stored in the 5 upper bits
+        assert((golomb_rice_length << 27) >> 27 == golomb_rice_length);
+        (*memo)[m] = golomb_rice_length << 27;
+        for (size_t i = 0; i < fanout; ++i) golomb_rice_length += (*memo)[k[i]] & 0xFFFF;
+        assert(golomb_rice_length <=
+               0xFFFF); // Sum of Golomb-Rice codeslengths in the subtree, stored in the lower 16 bits
+        (*memo)[m] |= golomb_rice_length;
+
+        uint32_t nodes = 1;
+        for (size_t i = 0; i < fanout; ++i) nodes += ((*memo)[k[i]] >> 16) & 0x7FF;
+        assert(LEAF_SIZE < 3 || nodes <= 0x7FF); // Number of nodes in the subtree, stored in the middle 11 bits
+        (*memo)[m] |= nodes << 16;
     }
 
-    k[fanout - 1] = m;
-    for (size_t i = 0; i < fanout - 1; ++i) {
-        k[i] = unit;
-        k[fanout - 1] -= k[i];
+    template<size_t LEAF_SIZE>
+    static constexpr array<uint64_t, MAX_BUCKET_SIZE> fill_golomb_rice2() {
+        array<uint64_t, MAX_BUCKET_SIZE> memo{0};
+        size_t s = 0;
+        for (; s <= LEAF_SIZE; ++s) {
+            memo[s] = uint64_t(bij_memo2[s]+12) << 27 | (s > 1) << 16 | (bij_memo2[s]+12);
+            assert(memo[s] >> 27 == bij_memo2[s]+12);
+        }
+        for (; s < MAX_BUCKET_SIZE; ++s) _fill_golomb_rice2<LEAF_SIZE>(s, &memo);
+        return memo;
     }
 
-    double sqrt_prod = 1;
-    for (size_t i = 0; i < fanout; ++i) sqrt_prod *= sqrt(k[i]);
-
-    const double p = sqrt(m) / (pow(2 * M_PI, (fanout - 1.) / 2) * sqrt_prod);
-    uint64_t golomb_rice_length = ceil(log2(-log((sqrt(5) + 1) / 2) / log1p(-p))); // log2 Golomb modulus
-
-    assert(golomb_rice_length <= 0x1F); // Golomb-Rice code, stored in the 5 upper bits
-    assert((golomb_rice_length << 27) >> 27 == golomb_rice_length);
-    (*memo)[m] = golomb_rice_length << 27;
-    for (size_t i = 0; i < fanout; ++i) golomb_rice_length += (*memo)[k[i]] & 0xFFFF;
-    assert(golomb_rice_length <= 0xFFFF); // Sum of Golomb-Rice codeslengths in the subtree, stored in the lower 16 bits
-    (*memo)[m] |= golomb_rice_length;
-
-    uint32_t nodes = 1;
-    for (size_t i = 0; i < fanout; ++i) nodes += ((*memo)[k[i]] >> 16) & 0x7FF;
-    assert(LEAF_SIZE < 3 || nodes <= 0x7FF); // Number of nodes in the subtree, stored in the middle 11 bits
-    (*memo)[m] |= nodes << 16;
-}
-
-template <size_t LEAF_SIZE> static constexpr array<uint64_t, MAX_BUCKET_SIZE> fill_golomb_rice2() {
-    array<uint64_t, MAX_BUCKET_SIZE> memo{0};
-    size_t s = 0;
-    for (; s <= LEAF_SIZE; ++s) {
-        memo[s] = uint64_t(bij_memo2[s]) << 27 | (s > 1) << 16 | bij_memo2[s];
-        assert(memo[s] >> 27 == bij_memo2[s]);
+    template<typename t>
+    int parity(t val) {
+        return __builtin_parityll(val); //generalize 128 bit
     }
-    for (; s < MAX_BUCKET_SIZE; ++s) _fill_golomb_rice2<LEAF_SIZE>(s, &memo);
-    return memo;
-}
 
-template <size_t LEAF_SIZE>
-class ShockHash2 {
+    template<size_t LEAF_SIZE>
+    class ShockHash2 {
         static_assert(LEAF_SIZE <= MAX_LEAF_SIZE2);
         static constexpr AllocType AT = sux::util::AllocType::MALLOC;
         static constexpr size_t _leaf = LEAF_SIZE;
@@ -139,7 +149,7 @@ class ShockHash2 {
 
         ShockHash2(const vector<string> &keys, const size_t bucket_size, size_t num_threads = 1) {
             this->keys_count = keys.size();
-            hash128_t *h = (hash128_t *)malloc(this->keys_count * sizeof(hash128_t));
+            hash128_t *h = (hash128_t *) malloc(this->keys_count * sizeof(hash128_t));
             if (num_threads == 1) {
                 for (size_t i = 0; i < this->keys_count; ++i) {
                     h[i] = first_hash(keys[i].c_str(), keys[i].size());
@@ -156,7 +166,7 @@ class ShockHash2 {
                         }
                     });
                 }
-                for (std::thread &t : threads) {
+                for (std::thread &t: threads) {
                     t.join();
                 }
             }
@@ -223,15 +233,28 @@ class ShockHash2 {
             }
 
             const auto b = reader.readNext(golomb_param(m));
+            size_t seed = b >> 12;
 
             // Begin: difference to RecSplit.
             return cum_keys + shockhash2query(m, b, hash.second, ribbon.retrieve(hash.second));
+/*
+            static constexpr int matrix_width = LEAF_SIZE - 2;
+            static constexpr __uint128_t row_mask = (__uint128_t(1) << matrix_width) - 1;
+            uint64_t retrievalVec = (b & row_mask);
+            uint64_t retrieved = parity(retrievalVec & hash.second);
+            size_t seed = b >> matrix_width;
+            std::cout << hash.second << " " << retrieved << " " <<
+                      (cum_keys + shockhash2query(m, seed, hash.second, 0)) << " "
+                      << (cum_keys + shockhash2query(m, seed, hash.second, 1))
+                      << std::endl;
+            return cum_keys + shockhash2query(m, seed, hash.second, retrieved);*/
             // End: difference to RecSplit.
         }
 
         /** Returns the value associated with the given key.
          *
          * @param key a key.
+         * @return the associated value.
          * @return the associated value.
          */
         size_t operator()(const string &key) { return operator()(first_hash(key.c_str(), key.size())); }
@@ -242,14 +265,14 @@ class ShockHash2 {
         /** Returns an estimate of the size in bits of this structure. */
         size_t getBits() {
             return ef.bitCountCumKeys() + ef.bitCountPosition()
-                    + descriptors.getBits() + 8 * ribbon.sizeBytes() + 8 * sizeof(ShockHash2);
+                   + descriptors.getBits() + 8 * ribbon.sizeBytes() + 8 * sizeof(ShockHash2);
         }
 
         void printBits() {
-            std::cout<<"EF 1:   "<<(double)ef.bitCountCumKeys()/keys_count<<std::endl;
-            std::cout<<"EF 2:   "<<(double)ef.bitCountPosition()/keys_count<<std::endl;
-            std::cout<<"trees:  "<<(double)descriptors.getBits()/keys_count<<std::endl;
-            std::cout<<"ribbon: "<<(double)(8 * ribbon.sizeBytes())/keys_count<<std::endl;
+            std::cout << "EF 1:   " << (double) ef.bitCountCumKeys() / keys_count << std::endl;
+            std::cout << "EF 2:   " << (double) ef.bitCountPosition() / keys_count << std::endl;
+            std::cout << "trees:  " << (double) descriptors.getBits() / keys_count << std::endl;
+            std::cout << "ribbon: " << (double) (8 * ribbon.sizeBytes()) / keys_count << std::endl;
         }
 
     private:
@@ -275,7 +298,7 @@ class ShockHash2 {
 
                 const auto log2golomb = golomb_param(m);
                 builder.appendFixed(x, log2golomb);
-                unary.push_back(x >> log2golomb);
+                unary.push_back(x >> (log2golomb));
 
 #ifdef STATS
                 bij_unary += 1 + (x >> log2golomb);
@@ -315,8 +338,11 @@ class ShockHash2 {
                     time_split[min(MAX_LEVEL_TIME, level)] += duration_cast<nanoseconds>(high_resolution_clock::now() - start_time).count();
                     split_opt += log2(x + 1);
 #endif
-                    recSplit(bucket, temp, start, start + split, builder, unary, level + 1, tinyBinaryCuckooHashTable, ribbonInput);
-                    if (m - split > 1) recSplit(bucket, temp, start + split, end, builder, unary, level + 1, tinyBinaryCuckooHashTable, ribbonInput);
+                    recSplit(bucket, temp, start, start + split, builder, unary, level + 1, tinyBinaryCuckooHashTable,
+                             ribbonInput);
+                    if (m - split > 1)
+                        recSplit(bucket, temp, start + split, end, builder, unary, level + 1, tinyBinaryCuckooHashTable,
+                                 ribbonInput);
                 } else if (m > lower_aggr) { // 2nd aggregation level
                     const size_t fanout = uint16_t(m + lower_aggr - 1) / lower_aggr;
                     size_t count[fanout]; // Note that we never read count[fanout-1]
@@ -333,7 +359,8 @@ class ShockHash2 {
 
                     for (size_t i = 0, c = 0; i < fanout; i++, c += lower_aggr) count[i] = c;
                     for (size_t i = start; i < end; i++) {
-                        temp[count[uint16_t(sux::function::remap16(sux::function::remix(bucket[i] + x), m)) / lower_aggr]++] = bucket[i];
+                        temp[count[uint16_t(sux::function::remap16(sux::function::remix(bucket[i] + x), m)) /
+                                   lower_aggr]++] = bucket[i];
                     }
                     copy(&temp[0], &temp[m], &bucket[start]);
 
@@ -348,9 +375,12 @@ class ShockHash2 {
 #endif
                     size_t i;
                     for (i = 0; i < m - lower_aggr; i += lower_aggr) {
-                        recSplit(bucket, temp, start + i, start + i + lower_aggr, builder, unary, level + 1, tinyBinaryCuckooHashTable, ribbonInput);
+                        recSplit(bucket, temp, start + i, start + i + lower_aggr, builder, unary, level + 1,
+                                 tinyBinaryCuckooHashTable, ribbonInput);
                     }
-                    if (m - i > 1) recSplit(bucket, temp, start + i, end, builder, unary, level + 1, tinyBinaryCuckooHashTable, ribbonInput);
+                    if (m - i > 1)
+                        recSplit(bucket, temp, start + i, end, builder, unary, level + 1, tinyBinaryCuckooHashTable,
+                                 ribbonInput);
                 } else { // First aggregation level, m <= lower_aggr
                     const size_t fanout = uint16_t(m + _leaf - 1) / _leaf;
                     size_t count[fanout]; // Note that we never read count[fanout-1]
@@ -381,9 +411,12 @@ class ShockHash2 {
 #endif
                     size_t i;
                     for (i = 0; i < m - _leaf; i += _leaf) {
-                        recSplit(bucket, temp, start + i, start + i + _leaf, builder, unary, level + 1, tinyBinaryCuckooHashTable, ribbonInput);
+                        recSplit(bucket, temp, start + i, start + i + _leaf, builder, unary, level + 1,
+                                 tinyBinaryCuckooHashTable, ribbonInput);
                     }
-                    if (m - i > 1) recSplit(bucket, temp, start + i, end, builder, unary, level + 1, tinyBinaryCuckooHashTable, ribbonInput);
+                    if (m - i > 1)
+                        recSplit(bucket, temp, start + i, end, builder, unary, level + 1, tinyBinaryCuckooHashTable,
+                                 ribbonInput);
                 }
 #ifdef STATS
                 const auto log2golomb = golomb_param(m);
@@ -448,9 +481,9 @@ class ShockHash2 {
 
 #ifndef __SIZEOF_INT128__
             if (keys_count > (1ULL << 32)) {
-			fprintf(stderr, "For more than 2^32 keys, you need 128-bit integer support.\n");
-			abort();
-		}
+            fprintf(stderr, "For more than 2^32 keys, you need 128-bit integer support.\n");
+            abort();
+        }
 #endif
             nbuckets = max(1, (keys_count + bucket_size - 1) / bucket_size);
             auto bucket_size_acc = std::vector<uint64_t>(nbuckets + 1);
@@ -491,7 +524,7 @@ class ShockHash2 {
             builder.appendFixed(1, 1); // Sentinel (avoids checking for parts of size 1)
             descriptors = builder.build();
             ef = DoubleEF<AT>(vector<uint64_t>(bucket_size_acc.begin(), bucket_size_acc.end()),
-                    vector<uint64_t>(bucket_pos_acc.begin(), bucket_pos_acc.end()));
+                              vector<uint64_t>(bucket_pos_acc.begin(), bucket_pos_acc.end()));
 
             // Begin: difference to RecSplit.
             ribbon = Ribbon(ribbonInput);
@@ -529,6 +562,6 @@ class ShockHash2 {
             }
 #endif
         }
-};
+    };
 
 } // namespace shockhash

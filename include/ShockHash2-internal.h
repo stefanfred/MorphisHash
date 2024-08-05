@@ -14,59 +14,59 @@
 #include "CuckooUnionFind.h"
 
 namespace shockhash {
-namespace stdx = std::experimental;
+    namespace stdx = std::experimental;
 
-template<typename T>
-using simd_t = stdx::native_simd<T>;
+    template<typename T>
+    using simd_t = stdx::native_simd<T>;
 //using simd_t = stdx::fixed_size_simd<T, 1>; // To disable SIMD
 
-template<size_t leafSize>
-static constexpr uint64_t MASK_HALF = ((leafSize + 1) / 2 >= 64) ? ~0ul : (1ul << ((leafSize + 1) / 2)) - 1;
+    template<size_t leafSize>
+    static constexpr uint64_t MASK_HALF = ((leafSize + 1) / 2 >= 64) ? ~0ul : (1ul << ((leafSize + 1) / 2)) - 1;
 
-template <size_t leafSize, bool isolatedVertexFilter = false>
-struct SeedCache {
-    [[no_unique_address]]
-    std::conditional_t<isolatedVertexFilter, __uint128_t, std::monostate> isolatedVertices;
-    uint64_t seed;
-    uint8_t hashes[leafSize];
-};
+    template<size_t leafSize, bool isolatedVertexFilter = false>
+    struct SeedCache {
+        [[no_unique_address]]
+        std::conditional_t<isolatedVertexFilter, __uint128_t, std::monostate> isolatedVertices;
+        uint64_t seed;
+        uint8_t hashes[leafSize];
+    };
 
-template <size_t leafSize>
-inline void calculateIsolatedVertices(SeedCache<leafSize, true> &seedCache) {
-    seedCache.isolatedVertices = __uint128_t(0);
-    uint64_t hitCount[leafSize] = {0};
-    for (size_t i = 0; i < leafSize; i++) {
-        hitCount[seedCache.hashes[i]]++;
-    }
-    for (size_t i = 0; i < leafSize; i++) {
-        if (hitCount[seedCache.hashes[i]] == 1) {
-            seedCache.isolatedVertices |= __uint128_t(1) << i;
+    template<size_t leafSize>
+    inline void calculateIsolatedVertices(SeedCache<leafSize, true> &seedCache) {
+        seedCache.isolatedVertices = __uint128_t(0);
+        uint64_t hitCount[leafSize] = {0};
+        for (size_t i = 0; i < leafSize; i++) {
+            hitCount[seedCache.hashes[i]]++;
         }
-    }
-
-    /*__uint128_t hitCount1 = 0;
-    __uint128_t hitCountMoreThan1 = 0;
-    for (size_t i = 0; i < leafSize; i++) {
-        // hitCount[seedCache.hashes[i]]++;
-        __uint128_t pos = __uint128_t(1) << seedCache.hashes[i];
-        hitCountMoreThan1 |= (hitCount1 & pos);
-        hitCount1 |= pos;
-    }
-    __uint128_t isolated = 0;
-    for (size_t i = 0; i < leafSize; i++) {
-        //if (hitCount[seedCache.hashes[i]] == 1) {
-        //    seedCache.isolatedVertices |= __uint128_t(1) << i;
-        //}
-        __uint128_t pos = __uint128_t(1) << seedCache.hashes[i];
-        if ((((~hitCount1) | hitCountMoreThan1) & pos) == 0) {
-            isolated |= __uint128_t(1) << i;
+        for (size_t i = 0; i < leafSize; i++) {
+            if (hitCount[seedCache.hashes[i]] == 1) {
+                seedCache.isolatedVertices |= __uint128_t(1) << i;
+            }
         }
-    }
-    seedCache.isolatedVertices = isolated;*/
-}
 
-template <size_t leafSize, bool isolatedVertexFilter = false>
-class BasicSeedCandidateFinder {
+        /*__uint128_t hitCount1 = 0;
+        __uint128_t hitCountMoreThan1 = 0;
+        for (size_t i = 0; i < leafSize; i++) {
+            // hitCount[seedCache.hashes[i]]++;
+            __uint128_t pos = __uint128_t(1) << seedCache.hashes[i];
+            hitCountMoreThan1 |= (hitCount1 & pos);
+            hitCount1 |= pos;
+        }
+        __uint128_t isolated = 0;
+        for (size_t i = 0; i < leafSize; i++) {
+            //if (hitCount[seedCache.hashes[i]] == 1) {
+            //    seedCache.isolatedVertices |= __uint128_t(1) << i;
+            //}
+            __uint128_t pos = __uint128_t(1) << seedCache.hashes[i];
+            if ((((~hitCount1) | hitCountMoreThan1) & pos) == 0) {
+                isolated |= __uint128_t(1) << i;
+            }
+        }
+        seedCache.isolatedVertices = isolated;*/
+    }
+
+    template<size_t leafSize, bool isolatedVertexFilter = false>
+    class BasicSeedCandidateFinder {
     private:
         const std::vector<uint64_t> &keys;
         size_t currentSeed = 0;
@@ -104,12 +104,12 @@ class BasicSeedCandidateFinder {
         static std::string name() {
             return "Basic";
         }
-};
+    };
 
-template <size_t leafSize, bool isolatedVertexFilter = false>
-class RotatingSeedCandidateFinder {
+    template<size_t leafSize, bool isolatedVertexFilter = false>
+    class RotatingSeedCandidateFinder {
     private:
-        std::array<uint64_t, leafSize> keys = { 0 };
+        std::array<uint64_t, leafSize> keys = {0};
         uint64_t sizeSetA = 0;
         size_t currentSeed = -1;
         size_t currentRotation = (leafSize + 1) / 2;
@@ -183,10 +183,10 @@ class RotatingSeedCandidateFinder {
         static std::string name() {
             return "Rotate";
         }
-};
+    };
 
-template <size_t leafSize>
-class CandidateList {
+    template<size_t leafSize>
+    class CandidateList {
     private:
         static constexpr size_t NUM_SENTINELS = simd_t<uint64_t>::size() + 1;
         std::vector<uint64_t> candidates;
@@ -213,7 +213,7 @@ class CandidateList {
             bool isEnd;
 
             IteratorType(const CandidateList &candidateList, uint64_t filterMask, bool isEnd)
-                : candidateList(candidateList), filterMask(filterMask), isEnd(isEnd) {
+                    : candidateList(candidateList), filterMask(filterMask), isEnd(isEnd) {
                 size = candidateList.candidates.size();
                 if (!isEnd) {
                     operator++(); // Initialized with -1, go to first actual item
@@ -229,7 +229,7 @@ class CandidateList {
                 return std::make_pair(currentIdx, mask);
             }
 
-            inline IteratorType& operator++() {
+            inline IteratorType &operator++() {
                 ++currentIdx;
                 simd_t<uint64_t> filterMaskSimd = filterMask;
                 simd_t<uint64_t> maskHalfSimd = MASK_HALF<leafSize>;
@@ -256,7 +256,7 @@ class CandidateList {
             uint64_t mask;
 
             FilteredListType(CandidateList &candidateList, uint64_t mask)
-                : candidateList(candidateList), mask(mask) {
+                    : candidateList(candidateList), mask(mask) {
             }
 
             inline IteratorType begin() const {
@@ -275,10 +275,10 @@ class CandidateList {
         static std::string name() {
             return "List";
         }
-};
+    };
 
-template <size_t leafSize>
-class CandidateBuckets {
+    template<size_t leafSize>
+    class CandidateBuckets {
     private:
         static constexpr uint64_t BUCKET_MASK = 0b11111;
         std::array<std::vector<uint64_t>, BUCKET_MASK + 1> candidateMasks;
@@ -334,7 +334,7 @@ class CandidateBuckets {
                                       candidateTree.candidateMasks[currentBucket][currentIdx]);
             }
 
-            inline IteratorType& operator++() {
+            inline IteratorType &operator++() {
                 ++currentIdx;
                 while (currentBucket <= BUCKET_MASK) {
                     const std::vector<uint64_t> &bucket = candidateTree.candidateMasks[currentBucket];
@@ -381,13 +381,13 @@ class CandidateBuckets {
         static std::string name() {
             return "Buckets" + std::to_string(BUCKET_MASK + 1);
         }
-};
+    };
 
-template <template<size_t> typename CandidateList, size_t leafSize, bool isolatedVertexFilter = false>
-class QuadSplitCandidateFinder {
+    template<template<size_t> typename CandidateList, size_t leafSize, bool isolatedVertexFilter = false>
+    class QuadSplitCandidateFinder {
     public:
         static constexpr double E_HALF = 1.359140914;
-        std::array<uint64_t, leafSize> keys = { 0 };
+        std::array<uint64_t, leafSize> keys = {0};
         uint64_t sizeSetA = 0;
         size_t currentSeed = -1;
         CandidateList<leafSize> candidatesA;
@@ -446,16 +446,17 @@ class QuadSplitCandidateFinder {
                 takenB |= 1ul << ::util::fastrange64(hash, (leafSize + 1) / 2);
             }
 
-            for (const auto [candidateSeed, candidateMask] : candidatesA.filter(takenB)) {
+            for (const auto [candidateSeed, candidateMask]: candidatesA.filter(takenB)) {
                 if (isFloatAccurateElegant(candidateSeed, currentSeed)) {
                     extractedCandidates.push_back(makeCache(candidateSeed, currentSeed));
                 } else {
                     std::cout << "Skipped seed because of floating point inaccuracy" << std::endl;
                 }
             }
-            candidatesA.add(currentSeed, takenA); // add after iterating, so we don't test the same seed combination twice
+            candidatesA.add(currentSeed,
+                            takenA); // add after iterating, so we don't test the same seed combination twice
             candidatesB.add(currentSeed, takenB);
-            for (const auto [candidateSeed, candidateMask] : candidatesB.filter(takenA)) {
+            for (const auto [candidateSeed, candidateMask]: candidatesB.filter(takenA)) {
                 if (isFloatAccurateElegant(currentSeed, candidateSeed)) {
                     extractedCandidates.push_back(makeCache(currentSeed, candidateSeed));
                 } else {
@@ -465,14 +466,17 @@ class QuadSplitCandidateFinder {
             if (extractedCandidates.size() > 1) {
                 // Smallest seed is in the back
                 std::sort(extractedCandidates.begin(), extractedCandidates.end(),
-                          [](const SeedCache<leafSize, isolatedVertexFilter> &a, const SeedCache<leafSize, isolatedVertexFilter> &b) {
-                              return a.seed > b.seed; });
+                          [](const SeedCache<leafSize, isolatedVertexFilter> &a,
+                             const SeedCache<leafSize, isolatedVertexFilter> &b) {
+                              return a.seed > b.seed;
+                          });
             }
         }
 
         static size_t hash(uint64_t key, uint64_t seed) {
             auto [seedA, seedB] = unpairElegant(seed);
             uint64_t seedToUse = ((key & 1) == 0) ? seedA : seedB;
+
             return ::util::fastrange64(::util::remix(key + seedToUse), (leafSize + 1) / 2);
         }
 
@@ -480,25 +484,53 @@ class QuadSplitCandidateFinder {
             return std::string("QuadSplit")
                    + CandidateList<leafSize>::name();
         }
-};
+    };
 
-template <size_t leafSize, bool isolatedVertexFilter>
-using QuadSplitCandidateFinderList = QuadSplitCandidateFinder<CandidateList, leafSize, isolatedVertexFilter>;
+    template<size_t leafSize, bool isolatedVertexFilter>
+    using QuadSplitCandidateFinderList = QuadSplitCandidateFinder<CandidateList, leafSize, isolatedVertexFilter>;
 
-template <size_t leafSize, bool isolatedVertexFilter>
-using QuadSplitCandidateFinderBuckets = QuadSplitCandidateFinder<CandidateBuckets, leafSize, isolatedVertexFilter>;
+    template<size_t leafSize, bool isolatedVertexFilter>
+    using QuadSplitCandidateFinderBuckets = QuadSplitCandidateFinder<CandidateBuckets, leafSize, isolatedVertexFilter>;
 
 /**
  * ShockHash2 base case.
  * Note that while this can be used with uneven leaf sizes, it achieves suboptimal space and time.
  */
-template <size_t leafSize, bool isolatedVertexFilter = false,
-        template<size_t, bool> typename SeedCandidateFinder = BasicSeedCandidateFinder>
-class BijectionsShockHash2 {
+    template<size_t leafSize, bool isolatedVertexFilter = false,
+            template<size_t, bool> typename SeedCandidateFinder = BasicSeedCandidateFinder>
+    class BijectionsShockHash2 {
+        static constexpr int matrix_width = leafSize;
+        typedef __uint128_t matrixRow;
+        static constexpr matrixRow row_mask = (matrixRow(1) << std::min(80,matrix_width)) - 1;
+        typedef matrixRow matrixSol;
+
+        template<typename t>
+        static inline t check_bit(t number, size_t n) {
+            return number & (t(1) << n);
+        }
+
+        template<typename t>
+        static inline t set_bit(t number, size_t n, bool x) {
+            return (number & ~(t(1) << n)) | (t(x) << n);
+        }
+
+        template<typename t>
+        static int parity(t val) {
+            return __builtin_parityll(val); //generalize 128 bit
+        }
+
+
     private:
         using CandidateFinder = SeedCandidateFinder<leafSize, isolatedVertexFilter>;
+
+        static uint64_t inline hashToRow(uint64_t z) {
+            z = (z ^ (z >> 30)) * 0xbf58476d1ce4e5b9;
+            z = (z ^ (z >> 27)) * 0x94d049bb133111eb;
+            return z ^ (z >> 31);
+        }
     public:
-        static inline size_t findSeed(const std::vector<uint64_t> &keys) {
+
+        static inline __uint128_t findSeed(const std::vector<uint64_t> &keys) {
             assert(keys.size() == leafSize);
             CandidateFinder seedCandidateFinder(keys);
             std::vector<SeedCache<leafSize, isolatedVertexFilter>> seedsCandidates;
@@ -508,24 +540,24 @@ class BijectionsShockHash2 {
                 const SeedCache<leafSize, isolatedVertexFilter> newCandidate = seedCandidateFinder.next();
                 SeedCache<leafSize, isolatedVertexFilter> newCandidateShifted = newCandidate;
                 for (size_t i = 0; i < leafSize; i++) {
-                    newCandidateShifted.hashes[i] += leafSize/2;
+                    newCandidateShifted.hashes[i] += leafSize / 2;
                 }
-                for (const SeedCache<leafSize, isolatedVertexFilter> &other : seedsCandidates) {
+                for (const SeedCache<leafSize, isolatedVertexFilter> &other: seedsCandidates) {
                     if constexpr (isolatedVertexFilter) {
                         if ((other.isolatedVertices & newCandidate.isolatedVertices) != 0ul) {
                             continue;
                         }
                     }
-                    size_t i = 0;
+                    size_t li = 0;
                     unionFind.clear();
-                    for (; i < leafSize; i++) {
-                        size_t end1 = newCandidateShifted.hashes[i];
-                        size_t end2 = other.hashes[i];
+                    for (; li < leafSize; li++) {
+                        size_t end1 = newCandidateShifted.hashes[li];
+                        size_t end2 = other.hashes[li];
                         if (!unionFind.unionIsStillPseudoforest(end1, end2)) {
                             break;
                         }
                     }
-                    if (i != leafSize) {
+                    if (li != leafSize) {
                         continue;
                     }
 
@@ -538,7 +570,87 @@ class BijectionsShockHash2 {
                         std::cout << "Skipped seed because of floating point inaccuracy" << std::endl;
                         continue;
                     }
-                    return fullSeed;
+
+                    if constexpr (matrix_width > 0) {
+                        std::array<matrixRow, leafSize> matrix{};
+                        std::bitset<leafSize> sol{};
+                        sol.set();
+
+                        // insert keys
+                        for (size_t i = 0; i < leafSize; i++) {
+                            matrixRow hash = keys[i];
+                            // matrixRow hash = hashToRow(keys[i] ^ fullSeed);
+                            auto addCand = [&](size_t end, bool orientation) {
+                                matrix[end] ^= hash;
+                                if (!orientation)
+                                    sol[end].flip();
+                            };
+                            addCand(newCandidateShifted.hashes[i], false);
+                            addCand(other.hashes[i], true);
+                        }
+
+                        /*if (retrieved == 0) {
+                            result = CandidateFinder::hash(key, seed1) + leafSize / 2;
+                        }*/
+
+                        // gauss
+                        std::bitset<leafSize> usedrow{};
+                        for (size_t coloumn = 0; coloumn < matrix_width; ++coloumn) {
+                            // find usable row
+                            size_t pivotrowindex = 0;
+                            for (; pivotrowindex < leafSize; ++pivotrowindex) {
+                                if (not usedrow[pivotrowindex] and check_bit(matrix[pivotrowindex], coloumn)) {
+                                    break;
+                                }
+                            }
+                            if (pivotrowindex == leafSize) {
+                                // zero coloumn
+                                continue;
+                            }
+                            usedrow[pivotrowindex] = true;
+                            matrixRow pivotrow = matrix[pivotrowindex];
+                            bool pivotsol = sol[pivotrowindex];
+
+                            // add to all other
+                            for (size_t rowindex = 0; rowindex < leafSize; ++rowindex) {
+                                if (rowindex != pivotrowindex && check_bit(matrix[rowindex], coloumn)) {
+                                    matrix[rowindex] ^= pivotrow;
+                                    sol[rowindex] = sol[rowindex] != pivotsol;
+                                }
+                            }
+                        }
+
+                        // check solvable
+                        matrixSol res = 0;
+                        bool fail = false;
+                        for (size_t rowindex = 0; rowindex < leafSize and not fail; ++rowindex) {
+                            matrixRow row = matrix[rowindex];
+                            bool s = sol[rowindex];
+                            if ((row & row_mask) == 0) {
+                                if (s) {
+                                    // contradiction
+                                    fail = true;
+                                } else {
+                                    // redundant
+                                    continue;
+                                }
+                            }
+                            int pivotIndex = std::countr_zero(row);
+                            res = set_bit(res, pivotIndex, s);
+                        }
+
+                        if (fail) {
+                            continue;
+                        }
+                        for (int i = 0; i < leafSize; ++i) {
+                            std::cout << keys[i] <<" "<< parity(keys[i] & uint64_t(res & row_mask))<<" "<<std::to_string(newCandidateShifted.hashes[i])<< " "<<std::to_string(other.hashes[i])<<std::endl;
+                        }
+                        std::cout<<fullSeed<<" "<<uint64_t(res & row_mask)<<std::endl;
+                        return fullSeed;
+                        //return (fullSeed << matrix_width) | res;
+                    } else {
+                        return fullSeed;
+                    }
                 }
                 seedsCandidates.push_back(newCandidate);
             }
@@ -546,10 +658,10 @@ class BijectionsShockHash2 {
         }
 
         static inline void constructRetrieval(const std::vector<uint64_t> &keys, size_t seed,
-                                       std::vector<std::pair<uint64_t, uint8_t>> &retrieval) {
+                                              std::vector<std::pair<uint64_t, uint8_t>> &retrieval) {
             auto [seed1, seed2] = unpairTriangular(seed);
             shockhash::TinyBinaryCuckooHashTable table(leafSize);
-            for (uint64_t key : keys) {
+            for (uint64_t key: keys) {
                 table.prepare(shockhash::HashedKey(key));
             }
             table.clearPlacement();
@@ -569,6 +681,10 @@ class BijectionsShockHash2 {
                     retrieval.emplace_back(table.heap[k].hash.mhc, 0);
                 }
             }
+
+            for (size_t k = 0; k < leafSize; k++) {
+                std::cout << retrieval[k].first<<" "<< uint64_t(retrieval[k].second)<< std::endl;
+            }
         }
 
         static inline size_t hash(size_t seed, uint64_t key, uint64_t retrieved) {
@@ -584,11 +700,11 @@ class BijectionsShockHash2 {
         }
 
         static void verify(size_t seed, const std::vector<uint64_t> &keys,
-                    std::vector<std::pair<uint64_t, uint8_t>> &retrieval) {
+                           std::vector<std::pair<uint64_t, uint8_t>> &retrieval) {
             std::vector<bool> taken(leafSize, false);
-            for (uint64_t key : keys) {
+            for (uint64_t key: keys) {
                 size_t retrieved = ~0u;
-                for (auto &retr : retrieval) {
+                for (auto &retr: retrieval) {
                     if (retr.first == key) {
                         retrieved = retr.second;
                     }
@@ -597,6 +713,7 @@ class BijectionsShockHash2 {
                     throw std::logic_error("Not in retrieval");
                 }
                 size_t hashValue = hash(seed, key, retrieved);
+                // size_t hashValue = hash(seed, key, 0);
                 if (taken[hashValue]) {
                     throw std::logic_error("Collision");
                 }
@@ -607,19 +724,19 @@ class BijectionsShockHash2 {
         inline double calculateBijection(const std::vector<uint64_t> &keys) {
             size_t seed = findSeed(keys);
             // Begin: Validity check
-            #ifndef NDEBUG
-                std::vector<std::pair<uint64_t, uint8_t>> retrieval;
-                constructRetrieval(keys, seed, retrieval);
-                verify(seed, keys, retrieval);
-            #endif
+#ifndef NDEBUG
+            //std::vector<std::pair<uint64_t, uint8_t>> retrieval;
+            //constructRetrieval(keys, seed, retrieval);
+            //verify(seed, keys, retrieval);
+#endif
             // End: Validity check
             return seed;
         }
 
         static std::string name() {
             return std::string("ShockHash2")
-                    + (isolatedVertexFilter ? "Filter" : "")
-                    + CandidateFinder::name();
+                   + (isolatedVertexFilter ? "Filter" : "")
+                   + CandidateFinder::name();
         }
-};
+    };
 } // namespace shockhash

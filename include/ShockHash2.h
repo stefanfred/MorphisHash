@@ -113,7 +113,7 @@ static constexpr uint64_t mywidth = 14;
         array<uint64_t, MAX_BUCKET_SIZE> memo{0};
         size_t s = 0;
         for (; s <= LEAF_SIZE; ++s) {
-            memo[s] = uint64_t(bij_memo2[s]+mywidth) << 27 | (s > 1) << 16 | (bij_memo2[s]+mywidth);
+            memo[s] = (uint64_t(bij_memo2[s])+mywidth) << 27 | (s > 1) << 16 | ((bij_memo2[s]) +mywidth);
             assert(memo[s] >> 27 == bij_memo2[s]+mywidth);
         }
         for (; s < MAX_BUCKET_SIZE; ++s) _fill_golomb_rice2<LEAF_SIZE>(s, &memo);
@@ -233,8 +233,9 @@ static constexpr uint64_t mywidth = 14;
                 level++;
             }
 
-            const auto b = reader.readNext(20);
-            static constexpr int matrix_width = mywidth;
+            const auto b = reader.readNext(golomb_param(m));
+            std::cout<<"READ "<<golomb_param(m)<<std::endl;
+            static constexpr int matrix_width = 14;
             static constexpr __uint128_t row_mask = (__uint128_t(1) << matrix_width) - 1;
             uint64_t retrieved = parity(b & row_mask & hash.second);
             size_t seed = b >> matrix_width;
@@ -290,8 +291,8 @@ static constexpr uint64_t mywidth = 14;
                 x = shockhash2construct(m, leafKeys, ribbonInput);
                 // End: difference to RecSplit.
 
-                const auto log2golomb = 20;
-//                const auto log2golomb = golomb_param(m);
+                const auto log2golomb = golomb_param(m);
+                std::cout<<"WRITE "<<golomb_param(m)<<std::endl;
                 builder.appendFixed(x, log2golomb);
                 unary.push_back(x >> (log2golomb));
 

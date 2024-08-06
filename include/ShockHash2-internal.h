@@ -501,7 +501,7 @@ namespace shockhash {
             template<size_t, bool> typename SeedCandidateFinder = BasicSeedCandidateFinder>
     class BijectionsShockHash2 {
         static constexpr int matrix_width = 14;
-        typedef __uint128_t matrixRow;
+        typedef uint64_t matrixRow;
         static constexpr matrixRow row_mask = (matrixRow(1) << std::min(80, matrix_width)) - 1;
         typedef matrixRow matrixSol;
 
@@ -580,7 +580,7 @@ namespace shockhash {
 
                         // insert keys
                         for (size_t i = 0; i < leafSize; i++) {
-                            matrixRow hash = keys[i];
+                            matrixRow hash = keys[i] & row_mask;
                             // matrixRow hash = hashToRow(keys[i] ^ fullSeed);
                             auto addCand = [&](size_t end, bool orientation) {
                                 matrix[end] ^= hash;
@@ -625,7 +625,7 @@ namespace shockhash {
                         for (size_t rowindex = 0; rowindex < leafSize and not fail; ++rowindex) {
                             matrixRow row = matrix[rowindex];
                             bool s = sol[rowindex];
-                            if ((row & row_mask) == 0) {
+                            if (row == 0) {
                                 if (s) {
                                     // contradiction
                                     fail = true;

@@ -18,10 +18,10 @@
 #include <sux/function/DoubleEF.hpp>
 #include <sux/function/RiceBitVector.hpp>
 #include <sux/function/RecSplit.hpp>
-#include <SimpleRibbon.h>
 #include <Sorter.hpp>
 #include "TinyBinaryCuckooHashTable.h"
 #include "RiceBitVector.h"
+#include <SimpleRibbon.h>
 
 namespace shockhash {
 using namespace sux;

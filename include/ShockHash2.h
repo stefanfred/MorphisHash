@@ -18,17 +18,16 @@
 #include <sux/function/DoubleEF.hpp>
 #include <sux/function/RiceBitVector.hpp>
 #include <sux/function/RecSplit.hpp>
-#include <SimpleRibbon.h>
 #include <Sorter.hpp>
 #include <bitset>
+#include <SimpleRibbon.h>
 #include "ShockHash.h"
 #include "ShockHash2-precompiled.h"
+#include "ShockHash2-internal.h"
 #include "RiceBitVector.h"
 
 namespace shockhash {
-static const int MAX_LEAF_SIZE2 = 138;
 
-static constexpr uint64_t mywidth = 14;
 // Optimal Golomb-Rice parameters for leaves. See golombMemoTuner.cpp.
 // Note that uneven leaf sizes are less efficient in ShockHash2.
     static constexpr uint8_t bij_memo2[MAX_LEAF_SIZE2 + 1] = {
@@ -63,7 +62,7 @@ static constexpr uint64_t mywidth = 14;
 // (following 11 bits) and the sum of the Golomb-Rice codelengths in the same
 // subtree (lower 16 bits).
 
-    template<size_t LEAF_SIZE>
+    template<size_t LEAF_SIZE, size_t RETRIEVAL_WIDTH>
     static constexpr void _fill_golomb_rice2(const size_t m, array<uint64_t, MAX_BUCKET_SIZE> *memo) {
         array<long, MAX_FANOUT> k{0};
 
@@ -108,15 +107,16 @@ static constexpr uint64_t mywidth = 14;
         (*memo)[m] |= nodes << 16;
     }
 
-    template<size_t LEAF_SIZE>
+    template<size_t LEAF_SIZE, size_t RETRIEVAL_DIFF>
     static constexpr array<uint64_t, MAX_BUCKET_SIZE> fill_golomb_rice2() {
         array<uint64_t, MAX_BUCKET_SIZE> memo{0};
         size_t s = 0;
         for (; s <= LEAF_SIZE; ++s) {
-            memo[s] = (uint64_t(bij_memo2[s])+mywidth) << 27 | (s > 1) << 16 | ((bij_memo2[s]) +mywidth);
-            assert(memo[s] >> 27 == bij_memo2[s]+mywidth);
+            uint8_t increment = (s > RETRIEVAL_DIFF and s > 1) ? (s - RETRIEVAL_DIFF) : 0;
+            memo[s] = (uint64_t(bij_memo2[s]) + increment) << 27 | (s > 1) << 16 | ((bij_memo2[s]) + increment);
+            assert(memo[s] >> 27 == bij_memo2[s] + increment);
         }
-        for (; s < MAX_BUCKET_SIZE; ++s) _fill_golomb_rice2<LEAF_SIZE>(s, &memo);
+        for (; s < MAX_BUCKET_SIZE; ++s) _fill_golomb_rice2<LEAF_SIZE, RETRIEVAL_DIFF>(s, &memo);
         return memo;
     }
 
@@ -125,7 +125,7 @@ static constexpr uint64_t mywidth = 14;
         return __builtin_parityll(val); //generalize 128 bit
     }
 
-    template<size_t LEAF_SIZE>
+    template<size_t LEAF_SIZE, size_t RETRIEVAL_DIFF>
     class ShockHash2 {
         static_assert(LEAF_SIZE <= MAX_LEAF_SIZE2);
         static constexpr AllocType AT = sux::util::AllocType::MALLOC;
@@ -135,7 +135,7 @@ static constexpr uint64_t mywidth = 14;
 
         // For each bucket size, the Golomb-Rice parameter (upper 8 bits) and the number of bits to
         // skip in the fixed part of the tree (lower 24 bits).
-        static constexpr array<uint64_t, MAX_BUCKET_SIZE> memo = fill_golomb_rice2<LEAF_SIZE>();
+        static constexpr array<uint64_t, MAX_BUCKET_SIZE> memo = fill_golomb_rice2<LEAF_SIZE, RETRIEVAL_DIFF>();
 
         size_t nbuckets;
         size_t keys_count;
@@ -234,14 +234,14 @@ static constexpr uint64_t mywidth = 14;
             }
 
             const auto b = reader.readNext(golomb_param(m));
-            std::cout<<"READ "<<golomb_param(m)<<std::endl;
-            static constexpr int matrix_width = 14;
-            static constexpr __uint128_t row_mask = (__uint128_t(1) << matrix_width) - 1;
+            //std::cout << "READ " << golomb_param(m) <<" "<<golomb_param(0)<<" "<<golomb_param(10)<< std::endl;
+            size_t width = m > RETRIEVAL_DIFF ? m - RETRIEVAL_DIFF : 0;
+            __uint128_t row_mask = (__uint128_t (1) << (m - RETRIEVAL_DIFF)) - 1; // ToDo: TYPE
             uint64_t retrieved = parity(b & row_mask & hash.second);
-            size_t seed = b >> matrix_width;
-            std::cout << hash.second<<" " <<seed <<" "<<uint64_t(b & row_mask)<<std::endl;
+            size_t seed = b >> width;
+            //std::cout << hash.second << " " << seed << " " << uint64_t(b & row_mask) << std::endl;
             // std::cout<<LEAF_SIZE<<std::endl;
-            return cum_keys + shockhash2query(m, seed, hash.second, retrieved);
+            return cum_keys + queryHash(seed, hash.second, retrieved, m); // ToDo: carefull wth width equals zero, maybe extra bool for burr use
             // End: difference to RecSplit.
         }
 
@@ -287,12 +287,12 @@ static constexpr uint64_t mywidth = 14;
 #endif
                 // Begin: difference to RecSplit.
                 std::vector<uint64_t> leafKeys(bucket.begin() + start, bucket.begin() + end);
-                std::cout<<"BUILD "<<start<< " "<<end<<std::endl;
-                x = shockhash2construct(m, leafKeys, ribbonInput);
+                std::cout << "BUILD " << start << " " << end << std::endl;
+                x = shockhash2construct(m, m > RETRIEVAL_DIFF ? m - RETRIEVAL_DIFF : 0, leafKeys, ribbonInput);
                 // End: difference to RecSplit.
 
                 const auto log2golomb = golomb_param(m);
-                std::cout<<"WRITE "<<golomb_param(m)<<std::endl;
+                std::cout << "WRITE " << golomb_param(m) << std::endl;
                 builder.appendFixed(x, log2golomb);
                 unary.push_back(x >> (log2golomb));
 

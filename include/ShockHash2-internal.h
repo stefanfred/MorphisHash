@@ -10,6 +10,7 @@
 #include <TinyBinaryCuckooHashTable.h>
 #include <UnionFind.h>
 #include <experimental/simd>
+#include <type_traits>
 #include "PairingFunction.h"
 #include "CuckooUnionFind.h"
 
@@ -65,112 +66,125 @@ namespace shockhash {
         seedCache.isolatedVertices = isolated;*/
     }
 
-    template<size_t leafSize, bool isolatedVertexFilter = false>
     class BasicSeedCandidateFinder {
-    private:
-        const std::vector<uint64_t> &keys;
-        size_t currentSeed = 0;
-    public:
-        explicit BasicSeedCandidateFinder(const std::vector<uint64_t> &keys) : keys(keys) {
+                public:
+        template<size_t leafSize, bool isolatedVertexFilter = false>
+        class Finder {
+        private:
+            const std::vector<uint64_t> &keys;
+            size_t currentSeed = 0;
+        public:
+            explicit Finder(const std::vector<uint64_t> &keys) : keys(keys) {
 
-        }
+            }
 
-        inline SeedCache<leafSize, isolatedVertexFilter> next() {
-            SeedCache<leafSize, isolatedVertexFilter> seedCache; // NOLINT(cppcoreguidelines-pro-type-member-init)
-            while (true) {
-                uint64_t taken = 0;
-                for (size_t i = 0; i < leafSize; i++) {
-                    uint64_t hash = ::util::remix(keys.at(i) + currentSeed);
-                    seedCache.hashes[i] = ::util::fastrange64(hash, (leafSize + 1) / 2);
-                    // std::cout << keys.at(i) << " " << uint64_t(seedCache.hashes[i]) << " " << currentSeed << std::endl;
-                    taken |= 1ul << seedCache.hashes[i];
-                }
-                if (taken == MASK_HALF<leafSize>) {
-                    // Found a new seed candidate
-                    seedCache.seed = currentSeed;
-                    if constexpr (isolatedVertexFilter) {
-                        calculateIsolatedVertices(seedCache);
+            inline SeedCache<leafSize, isolatedVertexFilter> next() {
+                SeedCache<leafSize, isolatedVertexFilter> seedCache; // NOLINT(cppcoreguidelines-pro-type-member-init)
+                while (true) {
+                    uint64_t taken = 0;
+                    for (size_t i = 0; i < leafSize; i++) {
+                        uint64_t hash = ::util::remix(keys.at(i) + currentSeed);
+                        seedCache.hashes[i] = ::util::fastrange64(hash, (leafSize + 1) / 2);
+                        // std::cout << keys.at(i) << " " << uint64_t(seedCache.hashes[i]) << " " << currentSeed << std::endl;
+                        taken |= 1ul << seedCache.hashes[i];
+                    }
+                    if (taken == MASK_HALF<leafSize>) {
+                        // Found a new seed candidate
+                        seedCache.seed = currentSeed;
+                        if constexpr (isolatedVertexFilter) {
+                            calculateIsolatedVertices(seedCache);
+                        }
+                        currentSeed++;
+                        return seedCache;
                     }
                     currentSeed++;
-                    return seedCache;
                 }
-                currentSeed++;
             }
-        }
 
-        static size_t hash(uint64_t key, uint64_t seed) {
+            static std::string name() {
+                return "Basic";
+            }
+        };
+
+    public:
+        static size_t hash(uint64_t key, uint64_t seed, size_t leafSize) {
             return ::util::fastrange64(::util::remix(key + seed), (leafSize + 1) / 2);
-        }
-
-        static std::string name() {
-            return "Basic";
         }
     };
 
-    template<size_t leafSize, bool isolatedVertexFilter = false>
     class RotatingSeedCandidateFinder {
-    private:
-        std::array<uint64_t, leafSize> keys = {0};
-        uint64_t sizeSetA = 0;
-        size_t currentSeed = -1;
-        size_t currentRotation = (leafSize + 1) / 2;
-        uint64_t takenA = 0;
-        uint64_t takenB = 0;
-        SeedCache<leafSize, isolatedVertexFilter> seedCache; // NOLINT(cppcoreguidelines-pro-type-member-init)
     public:
-        explicit RotatingSeedCandidateFinder(const std::vector<uint64_t> &keysIn) {
-            for (size_t i = 0; i < leafSize; i++) {
-                if ((keysIn[i] & 1) == 0) {
-                    keys.at(sizeSetA) = keysIn[i];
-                    sizeSetA++;
-                } else {
-                    keys.at(leafSize - i + sizeSetA - 1) = keysIn[i];
+        template<size_t leafSize, bool isolatedVertexFilter = false>
+        class Finder {
+        private:
+            std::array<uint64_t, leafSize> keys = {0};
+            uint64_t sizeSetA = 0;
+            size_t currentSeed = -1;
+            size_t currentRotation = (leafSize + 1) / 2;
+            uint64_t takenA = 0;
+            uint64_t takenB = 0;
+            SeedCache<leafSize, isolatedVertexFilter> seedCache; // NOLINT(cppcoreguidelines-pro-type-member-init)
+        public:
+            explicit Finder(const std::vector<uint64_t> &keysIn) {
+                for (size_t i = 0; i < leafSize; i++) {
+                    if ((keysIn[i] & 1) == 0) {
+                        keys.at(sizeSetA) = keysIn[i];
+                        sizeSetA++;
+                    } else {
+                        keys.at(leafSize - i + sizeSetA - 1) = keysIn[i];
+                    }
                 }
             }
-        }
 
-        static constexpr uint64_t rotate(uint64_t val, uint32_t x) {
-            constexpr uint64_t l = (leafSize + 1) / 2;
-            return ((val << x) | (val >> (l - x))) & ((1ul << l) - 1);
-        }
+            static constexpr uint64_t rotate(uint64_t val, uint32_t x) {
+                constexpr uint64_t l = (leafSize + 1) / 2;
+                return ((val << x) | (val >> (l - x))) & ((1ul << l) - 1);
+            }
 
-        inline SeedCache<leafSize, isolatedVertexFilter> next() {
-            while (true) {
-                while (currentRotation < (leafSize + 1) / 2) {
-                    if ((takenA | rotate(takenB, currentRotation)) == MASK_HALF<leafSize>) {
-                        // Found a new seed candidate
-                        SeedCache<leafSize, isolatedVertexFilter> rotated = seedCache;
-                        rotated.seed = currentSeed * ((leafSize + 1) / 2) + currentRotation;
-                        for (size_t i = sizeSetA; i < leafSize; i++) {
-                            rotated.hashes[i] = (rotated.hashes[i] + currentRotation) % ((leafSize + 1) / 2);
-                        }
-                        if constexpr (isolatedVertexFilter) {
-                            calculateIsolatedVertices(rotated);
+            inline SeedCache<leafSize, isolatedVertexFilter> next() {
+                while (true) {
+                    while (currentRotation < (leafSize + 1) / 2) {
+                        if ((takenA | rotate(takenB, currentRotation)) == MASK_HALF<leafSize>) {
+                            // Found a new seed candidate
+                            SeedCache<leafSize, isolatedVertexFilter> rotated = seedCache;
+                            rotated.seed = currentSeed * ((leafSize + 1) / 2) + currentRotation;
+                            for (size_t i = sizeSetA; i < leafSize; i++) {
+                                rotated.hashes[i] = (rotated.hashes[i] + currentRotation) % ((leafSize + 1) / 2);
+                            }
+                            if constexpr (isolatedVertexFilter) {
+                                calculateIsolatedVertices(rotated);
+                            }
+                            currentRotation++;
+                            return rotated;
                         }
                         currentRotation++;
-                        return rotated;
                     }
-                    currentRotation++;
-                }
-                currentRotation = 0;
-                currentSeed++;
+                    currentRotation = 0;
+                    currentSeed++;
 
-                takenA = 0;
-                takenB = 0;
-                for (size_t i = 0; i < sizeSetA; i++) {
-                    uint64_t hash = ::util::remix(keys[i] + currentSeed);
-                    seedCache.hashes[i] = ::util::fastrange64(hash, (leafSize + 1) / 2);
-                    takenA |= 1ul << seedCache.hashes[i];
-                }
-                for (size_t i = sizeSetA; i < leafSize; i++) {
-                    uint64_t hash = ::util::remix(keys[i] + currentSeed);
-                    seedCache.hashes[i] = ::util::fastrange64(hash, (leafSize + 1) / 2);
-                    takenB |= 1ul << seedCache.hashes[i];
+                    takenA = 0;
+                    takenB = 0;
+                    for (size_t i = 0; i < sizeSetA; i++) {
+                        uint64_t hash = ::util::remix(keys[i] + currentSeed);
+                        seedCache.hashes[i] = ::util::fastrange64(hash, (leafSize + 1) / 2);
+                        takenA |= 1ul << seedCache.hashes[i];
+                    }
+                    for (size_t i = sizeSetA; i < leafSize; i++) {
+                        uint64_t hash = ::util::remix(keys[i] + currentSeed);
+                        seedCache.hashes[i] = ::util::fastrange64(hash, (leafSize + 1) / 2);
+                        takenB |= 1ul << seedCache.hashes[i];
+                    }
                 }
             }
-        }
 
-        static size_t hash(uint64_t key, uint64_t seed) {
+
+            static std::string name() {
+                return "Rotate";
+            }
+        };
+
+    public:
+        static size_t hash(uint64_t key, uint64_t seed, size_t leafSize) {
             size_t hashSeed = seed / ((leafSize + 1) / 2);
             size_t rotation = seed % ((leafSize + 1) / 2);
             size_t baseHash = ::util::fastrange64(::util::remix(key + hashSeed), (leafSize + 1) / 2);
@@ -179,10 +193,6 @@ namespace shockhash {
             } else {
                 return (baseHash + rotation) % ((leafSize + 1) / 2);
             }
-        }
-
-        static std::string name() {
-            return "Rotate";
         }
     };
 
@@ -384,126 +394,222 @@ namespace shockhash {
         }
     };
 
-    template<template<size_t> typename CandidateList, size_t leafSize, bool isolatedVertexFilter = false>
     class QuadSplitCandidateFinder {
+    private:
+
     public:
-        static constexpr double E_HALF = 1.359140914;
-        std::array<uint64_t, leafSize> keys = {0};
-        uint64_t sizeSetA = 0;
-        size_t currentSeed = -1;
-        CandidateList<leafSize> candidatesA;
-        CandidateList<leafSize> candidatesB;
-        std::vector<SeedCache<leafSize, isolatedVertexFilter>> extractedCandidates;
+        template<template<size_t> typename CandidateList, size_t leafSize, bool isolatedVertexFilter = false>
+        class Finder {
+        public:
+            static constexpr double E_HALF = 1.359140914;
+            std::array<uint64_t, leafSize> keys = {0};
+            uint64_t sizeSetA = 0;
+            size_t currentSeed = -1;
+            CandidateList<leafSize> candidatesA;
+            CandidateList<leafSize> candidatesB;
+            std::vector<SeedCache<leafSize, isolatedVertexFilter>> extractedCandidates;
+        public:
+            explicit Finder(const std::vector<uint64_t> &keysIn)
+                    : candidatesA(std::pow(E_HALF, keysIn.size() / 2)),
+                      candidatesB(std::pow(E_HALF, keysIn.size() / 2)) {
+                for (size_t i = 0; i < leafSize; i++) {
+                    if ((keysIn[i] & 1) == 0) {
+                        keys.at(sizeSetA) = keysIn[i];
+                        sizeSetA++;
+                    } else {
+                        keys.at(leafSize - i + sizeSetA - 1) = keysIn[i];
+                    }
+                }
+            }
+
+
+            inline SeedCache<leafSize, isolatedVertexFilter> next() {
+                while (extractedCandidates.empty()) {
+                    prepareNextSeed();
+                }
+                SeedCache<leafSize, isolatedVertexFilter> seedCache = extractedCandidates.back(); // Smallest seed is in the back
+                extractedCandidates.pop_back();
+                return seedCache;
+            }
+
+            inline SeedCache<leafSize, isolatedVertexFilter> makeCache(size_t seedA, size_t seedB) {
+                SeedCache<leafSize, isolatedVertexFilter> cache = {};
+                cache.seed = pairElegant(seedA, seedB);
+                for (size_t i = 0; i < sizeSetA; i++) {
+                    uint64_t hash = ::util::remix(keys[i] + seedA);
+                    cache.hashes[i] = ::util::fastrange64(hash, (leafSize + 1) / 2);
+                }
+                for (size_t i = sizeSetA; i < leafSize; i++) {
+                    uint64_t hash = ::util::remix(keys[i] + seedB);
+                    cache.hashes[i] = ::util::fastrange64(hash, (leafSize + 1) / 2);
+                }
+                if constexpr (isolatedVertexFilter) {
+                    calculateIsolatedVertices(cache);
+                }
+                return cache;
+            }
+
+            void prepareNextSeed() {
+                currentSeed++;
+
+                uint64_t takenA = 0;
+                uint64_t takenB = 0;
+                for (size_t i = 0; i < sizeSetA; i++) {
+                    uint64_t hash = ::util::remix(keys[i] + currentSeed);
+                    takenA |= 1ul << ::util::fastrange64(hash, (leafSize + 1) / 2);
+                }
+                for (size_t i = sizeSetA; i < leafSize; i++) {
+                    uint64_t hash = ::util::remix(keys[i] + currentSeed);
+                    takenB |= 1ul << ::util::fastrange64(hash, (leafSize + 1) / 2);
+                }
+
+                for (const auto [candidateSeed, candidateMask]: candidatesA.filter(takenB)) {
+                    if (isFloatAccurateElegant(candidateSeed, currentSeed)) {
+                        extractedCandidates.push_back(makeCache(candidateSeed, currentSeed));
+                    } else {
+                        std::cout << "Skipped seed because of floating point inaccuracy" << std::endl;
+                    }
+                }
+                candidatesA.add(currentSeed,
+                                takenA); // add after iterating, so we don't test the same seed combination twice
+                candidatesB.add(currentSeed, takenB);
+                for (const auto [candidateSeed, candidateMask]: candidatesB.filter(takenA)) {
+                    if (isFloatAccurateElegant(currentSeed, candidateSeed)) {
+                        extractedCandidates.push_back(makeCache(currentSeed, candidateSeed));
+                    } else {
+                        std::cout << "Skipped seed because of floating point inaccuracy" << std::endl;
+                    }
+                }
+                if (extractedCandidates.size() > 1) {
+                    // Smallest seed is in the back
+                    std::sort(extractedCandidates.begin(), extractedCandidates.end(),
+                              [](const SeedCache<leafSize, isolatedVertexFilter> &a,
+                                 const SeedCache<leafSize, isolatedVertexFilter> &b) {
+                                  return a.seed > b.seed;
+                              });
+                }
+            }
+
+            static std::string name() {
+                return std::string("QuadSplit")
+                       + CandidateList<leafSize>::name();
+            }
+        };
+
     public:
-        explicit QuadSplitCandidateFinder(const std::vector<uint64_t> &keysIn)
-                : candidatesA(std::pow(E_HALF, keysIn.size() / 2)), candidatesB(std::pow(E_HALF, keysIn.size() / 2)) {
-            for (size_t i = 0; i < leafSize; i++) {
-                if ((keysIn[i] & 1) == 0) {
-                    keys.at(sizeSetA) = keysIn[i];
-                    sizeSetA++;
-                } else {
-                    keys.at(leafSize - i + sizeSetA - 1) = keysIn[i];
-                }
-            }
-        }
-
-        inline SeedCache<leafSize, isolatedVertexFilter> next() {
-            while (extractedCandidates.empty()) {
-                prepareNextSeed();
-            }
-            SeedCache<leafSize, isolatedVertexFilter> seedCache = extractedCandidates.back(); // Smallest seed is in the back
-            extractedCandidates.pop_back();
-            return seedCache;
-        }
-
-        inline SeedCache<leafSize, isolatedVertexFilter> makeCache(size_t seedA, size_t seedB) {
-            SeedCache<leafSize, isolatedVertexFilter> cache = {};
-            cache.seed = pairElegant(seedA, seedB);
-            for (size_t i = 0; i < sizeSetA; i++) {
-                uint64_t hash = ::util::remix(keys[i] + seedA);
-                cache.hashes[i] = ::util::fastrange64(hash, (leafSize + 1) / 2);
-            }
-            for (size_t i = sizeSetA; i < leafSize; i++) {
-                uint64_t hash = ::util::remix(keys[i] + seedB);
-                cache.hashes[i] = ::util::fastrange64(hash, (leafSize + 1) / 2);
-            }
-            if constexpr (isolatedVertexFilter) {
-                calculateIsolatedVertices(cache);
-            }
-            return cache;
-        }
-
-        void prepareNextSeed() {
-            currentSeed++;
-
-            uint64_t takenA = 0;
-            uint64_t takenB = 0;
-            for (size_t i = 0; i < sizeSetA; i++) {
-                uint64_t hash = ::util::remix(keys[i] + currentSeed);
-                takenA |= 1ul << ::util::fastrange64(hash, (leafSize + 1) / 2);
-            }
-            for (size_t i = sizeSetA; i < leafSize; i++) {
-                uint64_t hash = ::util::remix(keys[i] + currentSeed);
-                takenB |= 1ul << ::util::fastrange64(hash, (leafSize + 1) / 2);
-            }
-
-            for (const auto [candidateSeed, candidateMask]: candidatesA.filter(takenB)) {
-                if (isFloatAccurateElegant(candidateSeed, currentSeed)) {
-                    extractedCandidates.push_back(makeCache(candidateSeed, currentSeed));
-                } else {
-                    std::cout << "Skipped seed because of floating point inaccuracy" << std::endl;
-                }
-            }
-            candidatesA.add(currentSeed,
-                            takenA); // add after iterating, so we don't test the same seed combination twice
-            candidatesB.add(currentSeed, takenB);
-            for (const auto [candidateSeed, candidateMask]: candidatesB.filter(takenA)) {
-                if (isFloatAccurateElegant(currentSeed, candidateSeed)) {
-                    extractedCandidates.push_back(makeCache(currentSeed, candidateSeed));
-                } else {
-                    std::cout << "Skipped seed because of floating point inaccuracy" << std::endl;
-                }
-            }
-            if (extractedCandidates.size() > 1) {
-                // Smallest seed is in the back
-                std::sort(extractedCandidates.begin(), extractedCandidates.end(),
-                          [](const SeedCache<leafSize, isolatedVertexFilter> &a,
-                             const SeedCache<leafSize, isolatedVertexFilter> &b) {
-                              return a.seed > b.seed;
-                          });
-            }
-        }
-
-        static size_t hash(uint64_t key, uint64_t seed) {
+        static size_t hash(uint64_t key, uint64_t seed, size_t leafSize) {
             auto [seedA, seedB] = unpairElegant(seed);
             uint64_t seedToUse = ((key & 1) == 0) ? seedA : seedB;
 
             return ::util::fastrange64(::util::remix(key + seedToUse), (leafSize + 1) / 2);
         }
-
-        static std::string name() {
-            return std::string("QuadSplit")
-                   + CandidateList<leafSize>::name();
-        }
     };
 
     template<size_t leafSize, bool isolatedVertexFilter>
-    using QuadSplitCandidateFinderList = QuadSplitCandidateFinder<CandidateList, leafSize, isolatedVertexFilter>;
+    using QuadSplitCandidateFinderList = QuadSplitCandidateFinder::Finder<CandidateList, leafSize, isolatedVertexFilter>;
 
     template<size_t leafSize, bool isolatedVertexFilter>
-    using QuadSplitCandidateFinderBuckets = QuadSplitCandidateFinder<CandidateBuckets, leafSize, isolatedVertexFilter>;
+    using QuadSplitCandidateFinderBuckets = QuadSplitCandidateFinder::Finder<CandidateBuckets, leafSize, isolatedVertexFilter>;
+
+
+    static constexpr size_t SockHash2SeedFinderLeafSizeThreshold = 100;
+
+
+    static inline size_t queryCandidate(size_t seed, uint64_t key, size_t leafSize) {
+        if (leafSize > SockHash2SeedFinderLeafSizeThreshold) {
+            return QuadSplitCandidateFinder::hash(key, seed, leafSize);
+        } else {
+            return BasicSeedCandidateFinder::hash(key, seed, leafSize);
+        }
+    }
+
+    static inline size_t queryHash(size_t seed, uint64_t key, uint64_t retrieved, size_t leafSize) {
+        auto [seed1, seed2] = unpairTriangular(seed);
+
+        size_t usedSeed;
+        size_t result;
+        if (retrieved == 0) {
+            usedSeed = seed1;
+            result = leafSize / 2;
+        } else {
+            usedSeed = seed2;
+            result = 0;
+        }
+        result += queryCandidate(usedSeed, key, leafSize);
+
+        assert(result <= leafSize);
+        return result;
+    }
+
+    static void verify(size_t seed, const std::vector<uint64_t> &keys, size_t leafSize,
+                       std::vector<std::pair<uint64_t, uint8_t>> &retrieval) {
+        std::vector<bool> taken(leafSize, false);
+        for (uint64_t key: keys) {
+            size_t retrieved = ~0u;
+            for (auto &retr: retrieval) {
+                if (retr.first == key) {
+                    retrieved = retr.second;
+                }
+            }
+            if (retrieved == ~0u) {
+                throw std::logic_error("Not in retrieval");
+            }
+            size_t hashValue = queryHash(seed, key, retrieved, leafSize);
+            // size_t hashValue = hash(seed, key, 0);
+            if (taken[hashValue]) {
+                throw std::logic_error("Collision");
+            }
+            taken[hashValue] = true;
+        }
+    }
+
+    static inline void constructRetrieval(const std::vector<uint64_t> &keys, size_t seed,
+                                          std::vector<std::pair<uint64_t, uint8_t>> &retrieval, size_t leafSize) {
+
+        auto [seed1, seed2] = unpairTriangular(seed>>12);
+        shockhash::TinyBinaryCuckooHashTable table(leafSize);
+        for (uint64_t key: keys) {
+            table.prepare(shockhash::HashedKey(key));
+        }
+        table.clearPlacement();
+        for (size_t k = 0; k < leafSize; k++) {
+            shockhash::TinyBinaryCuckooHashTable::CandidateCells candidateCells;
+            candidateCells.cell1 = queryCandidate(seed1, table.heap[k].hash.mhc, leafSize) + leafSize / 2;
+            candidateCells.cell2 = queryCandidate(seed2, table.heap[k].hash.mhc, leafSize);
+            if (!table.insert(&table.heap[k], candidateCells)) {
+                throw std::logic_error("Should be possible to construct");
+            }
+        }
+        for (size_t k = 0; k < leafSize; k++) {
+            size_t candidate2 = queryCandidate(seed2, table.heap[k].hash.mhc, leafSize);
+            if (table.cells[candidate2] == &table.heap[k]) {
+                retrieval.emplace_back(table.heap[k].hash.mhc, 1);
+            } else {
+                retrieval.emplace_back(table.heap[k].hash.mhc, 0);
+            }
+        }
+    }
+
+
+
+    static constexpr int MAX_LEAF_SIZE2 = 138;
+    static constexpr int MAX_RETRIEVAL_WIDTH = 127;
+    static constexpr int MAX_DIFF = 7;
 
 /**
  * ShockHash2 base case.
  * Note that while this can be used with uneven leaf sizes, it achieves suboptimal space and time.
  */
-    template<size_t leafSize, bool isolatedVertexFilter = false,
-            template<size_t, bool> typename SeedCandidateFinder = BasicSeedCandidateFinder>
+    template<size_t leafSize, template<size_t, bool> typename SeedCandidateFinder, bool isolatedVertexFilter = false, size_t matrix_width = leafSize>
     class BijectionsShockHash2 {
-        static constexpr int matrix_width = 14;
-        typedef uint64_t matrixRow;
-        static constexpr matrixRow row_mask = (matrixRow(1) << std::min(80, matrix_width)) - 1;
+
+    private:
+        using CandidateFinder = SeedCandidateFinder<leafSize, isolatedVertexFilter>;
+
+        using matrixRow = std::conditional<matrix_width >= size_t(63), __uint128_t, uint64_t>::type;
+        static constexpr matrixRow row_mask = (matrixRow(1) << matrix_width) - 1;
         typedef matrixRow matrixSol;
+
 
         template<typename t>
         static inline t check_bit(t number, size_t n) {
@@ -519,10 +625,6 @@ namespace shockhash {
         static int parity(t val) {
             return __builtin_parityll(val); //generalize 128 bit
         }
-
-
-    private:
-        using CandidateFinder = SeedCandidateFinder<leafSize, isolatedVertexFilter>;
 
         static uint64_t inline hashToRow(uint64_t z) {
             z = (z ^ (z >> 30)) * 0xbf58476d1ce4e5b9;
@@ -641,16 +743,17 @@ namespace shockhash {
                         if (fail) {
                             continue;
                         }
-                        for (int i = 0; i < leafSize; ++i) {
+                        for (size_t i = 0; i < leafSize; ++i) {
                             //std::cout << keys[i] <<" "<< (parity(keys[i] & uint64_t(res & row_mask)) ? std::to_string(newCandidateShifted.hashes[i]) : std::to_string(other.hashes[i]))<<" "<<std::to_string(newCandidateShifted.hashes[i])<<" "<<std::to_string(other.hashes[i])<< " "<<seed1<<" "<<seed2<<  std::endl;
                             //std::cout<<(CandidateFinder::hash(keys[i], seed1))<<" "<<CandidateFinder::hash(keys[i], seed2)<<std::endl;
-                            std::cout << keys[i] << " " << " " << fullSeed << " " << uint64_t(res & row_mask)<<" "<<leafSize
+                            std::cout << keys[i] << " " << " " << fullSeed << " " << uint64_t(res & row_mask) << " "
+                                      << leafSize
                                       << std::endl;
                         }
                         //std::cout << fullSeed << " " << uint64_t(res & row_mask) << std::endl;
 
                         //return fullSeed;
-                        return (fullSeed << matrix_width) | res;
+                        return (__uint128_t(fullSeed) << matrix_width) | res;
                     } else {
                         return fullSeed;
                     }
@@ -660,85 +763,16 @@ namespace shockhash {
             return 0;
         }
 
-        static inline void constructRetrieval(const std::vector<uint64_t> &keys, size_t seed,
-                                              std::vector<std::pair<uint64_t, uint8_t>> &retrieval) {
-            for (uint64_t key: keys) {
-                retrieval.emplace_back(key, uint8_t(parity(key & uint64_t(seed & row_mask))));
-            }
 
-            //auto [seed1, seed2] = unpairTriangular(seed>>12);
-            /*shockhash::TinyBinaryCuckooHashTable table(leafSize);
-            for (uint64_t key: keys) {
-                table.prepare(shockhash::HashedKey(key));
-            }
-            table.clearPlacement();
-            for (size_t k = 0; k < leafSize; k++) {
-                shockhash::TinyBinaryCuckooHashTable::CandidateCells candidateCells;
-                candidateCells.cell1 = CandidateFinder::hash(table.heap[k].hash.mhc, seed1) + leafSize / 2;
-                candidateCells.cell2 = CandidateFinder::hash(table.heap[k].hash.mhc, seed2);
-                if (!table.insert(&table.heap[k], candidateCells)) {
-                    throw std::logic_error("Should be possible to construct");
-                }
-            }
-            for (size_t k = 0; k < leafSize; k++) {
-                size_t candidate2 = CandidateFinder::hash(table.heap[k].hash.mhc, seed2);
-                if (table.cells[candidate2] == &table.heap[k]) {
-                    retrieval.emplace_back(table.heap[k].hash.mhc, 1);
-                } else {
-                    retrieval.emplace_back(table.heap[k].hash.mhc, 0);
-                }
-            }
-
-            for (size_t k = 0; k < leafSize; k++) {
-                std::cout << retrieval[k].first<<" "<< uint64_t(retrieval[k].second)<< std::endl;
-            }*/
-        }
-
-        static inline size_t hash(size_t seed, uint64_t key, uint64_t retrieved) {
-            auto [seed1, seed2] = unpairTriangular(seed);
-
-            size_t result;
-            if (retrieved == 0) {
-                result = CandidateFinder::hash(key, seed1) + leafSize / 2;
-            } else {
-                result = CandidateFinder::hash(key, seed2);
-            }
-            //std::cout << key <<" "<< result<<" "<<(CandidateFinder::hash(key, seed1))<<" "<<CandidateFinder::hash(key, seed2)<<" "<<seed1<<" "<<seed2<< std::endl;
-
-
-            assert(result <= leafSize);
-            return result;
-        }
-
-        static void verify(size_t seed, const std::vector<uint64_t> &keys,
-                           std::vector<std::pair<uint64_t, uint8_t>> &retrieval) {
-            std::vector<bool> taken(leafSize, false);
-            for (uint64_t key: keys) {
-                size_t retrieved = ~0u;
-                for (auto &retr: retrieval) {
-                    if (retr.first == key) {
-                        retrieved = retr.second;
-                    }
-                }
-                if (retrieved == ~0u) {
-                    throw std::logic_error("Not in retrieval");
-                }
-                size_t hashValue = hash(seed, key, retrieved);
-                // size_t hashValue = hash(seed, key, 0);
-                if (taken[hashValue]) {
-                    throw std::logic_error("Collision");
-                }
-                taken[hashValue] = true;
-            }
-        }
 
         inline double calculateBijection(const std::vector<uint64_t> &keys) {
+            assert(matrix_width == 0);
             size_t seed = findSeed(keys);
             // Begin: Validity check
 #ifndef NDEBUG
-            //std::vector<std::pair<uint64_t, uint8_t>> retrieval;
-            //constructRetrieval(keys, seed, retrieval);
-            //verify(seed, keys, retrieval);
+            std::vector<std::pair<uint64_t, uint8_t>> retrieval;
+            constructRetrieval(keys, seed, retrieval, leafSize);
+            verify(seed, keys, leafSize, retrieval);
 #endif
             // End: Validity check
             return seed;

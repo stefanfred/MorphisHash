@@ -32,9 +32,9 @@ constexpr std::array<uint32_t, THRESHOLD_RANGE> _fill_mapping() {
     return array;
 }
 
-template <size_t k>
+template <size_t k, size_t w>
 class ShockHash2Flat {
-        using BaseCase = BijectionsShockHash2<k, true, shockhash::QuadSplitCandidateFinderList>;
+        using BaseCase = BijectionsShockHash2<k, shockhash::QuadSplitCandidateFinderList, true>;
         static constexpr double OVERLOAD_FACTOR = 0.9;
         static constexpr size_t THRESHOLD_BITS = tlx::integer_log2_floor(k) - 1;
         static constexpr size_t THRESHOLD_RANGE = 1ul << THRESHOLD_BITS;
@@ -46,7 +46,7 @@ class ShockHash2Flat {
         std::map<size_t, size_t> seedsFallback;
         std::vector<size_t> layerBases;
 
-        ShockHash2<k> fallbackPhf;
+        ShockHash2<k, w> fallbackPhf;
         size_t N;
         size_t nbuckets;
         pasta::BitVector freePositionsBv;
@@ -120,7 +120,7 @@ class ShockHash2Flat {
             for (auto &hash : hashes) {
                 fallbackPhfContent.push_back(std::to_string(hash.mhc));
             }
-            fallbackPhf = ShockHash2<k>(fallbackPhfContent, 2000, 1);
+            fallbackPhf = ShockHash2<k, w>(fallbackPhfContent, 2000, 1);
             size_t additionalFreePositions = hashes.size() - freePositions.size();
             size_t nbucketsHandled = layerBases.back();
             {

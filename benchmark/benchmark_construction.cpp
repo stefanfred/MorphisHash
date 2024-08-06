@@ -143,14 +143,8 @@ int main(int argc, const char* const* argv) {
         return 1;
     }
 
-    if (rotate) {
-        dispatchLeafSize<ShockHashRotate, shockhash::MAX_LEAF_SIZE>(leafSize);
-    } else if (shockhash2) {
+    if (shockhash2) {
         dispatchLeafSize<shockhash::ShockHash2, shockhash::MAX_LEAF_SIZE2>(leafSize);
-    } else if (shockhash2flat) {
-        dispatchLeafSize<shockhash::ShockHash2Flat, shockhash::MAX_LEAF_SIZE2>(leafSize);
-    } else {
-        dispatchLeafSize<ShockHash, shockhash::MAX_LEAF_SIZE>(leafSize);
     }
     return 0;
 }

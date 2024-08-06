@@ -112,8 +112,8 @@ static const int MAX_LEAF_SIZE2 = 138;
         array<uint64_t, MAX_BUCKET_SIZE> memo{0};
         size_t s = 0;
         for (; s <= LEAF_SIZE; ++s) {
-            memo[s] = uint64_t(bij_memo2[s]+12) << 27 | (s > 1) << 16 | (bij_memo2[s]+12);
-            assert(memo[s] >> 27 == bij_memo2[s]+12);
+            memo[s] = uint64_t(bij_memo2[s]+LEAF_SIZE) << 27 | (s > 1) << 16 | (bij_memo2[s]+LEAF_SIZE);
+            assert(memo[s] >> 27 == bij_memo2[s]+LEAF_SIZE);
         }
         for (; s < MAX_BUCKET_SIZE; ++s) _fill_golomb_rice2<LEAF_SIZE>(s, &memo);
         return memo;
@@ -233,14 +233,12 @@ static const int MAX_LEAF_SIZE2 = 138;
             }
 
             const auto b = reader.readNext(golomb_param(m));
-            static constexpr int matrix_width = 12;
+            static constexpr int matrix_width = min(80,LEAF_SIZE);
             static constexpr __uint128_t row_mask = (__uint128_t(1) << matrix_width) - 1;
             uint64_t retrieved = parity(b & row_mask & hash.second);
             size_t seed = b >> matrix_width;
-            std::cout << hash.second << " " << retrieved << " " <<
-                      (cum_keys + shockhash2query(m, seed, hash.second, 0)) << " "
-                      << (cum_keys + shockhash2query(m, seed, hash.second, 1))
-                      << std::endl;
+            std::cout << hash.second<<" " <<seed <<" "<<uint64_t(b & row_mask)<<std::endl;
+            // std::cout<<LEAF_SIZE<<std::endl;
             return cum_keys + shockhash2query(m, seed, hash.second, retrieved);
             // End: difference to RecSplit.
         }

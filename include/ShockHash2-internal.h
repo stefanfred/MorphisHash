@@ -82,7 +82,7 @@ namespace shockhash {
                 for (size_t i = 0; i < leafSize; i++) {
                     uint64_t hash = ::util::remix(keys.at(i) + currentSeed);
                     seedCache.hashes[i] = ::util::fastrange64(hash, (leafSize + 1) / 2);
-                    std::cout << keys.at(i)<<" "<<uint64_t (seedCache.hashes[i])<<" "<<currentSeed<<std::endl;
+                    // std::cout << keys.at(i) << " " << uint64_t(seedCache.hashes[i]) << " " << currentSeed << std::endl;
                     taken |= 1ul << seedCache.hashes[i];
                 }
                 if (taken == MASK_HALF<leafSize>) {
@@ -502,7 +502,7 @@ namespace shockhash {
     class BijectionsShockHash2 {
         static constexpr int matrix_width = leafSize;
         typedef __uint128_t matrixRow;
-        static constexpr matrixRow row_mask = (matrixRow(1) << std::min(80,matrix_width)) - 1;
+        static constexpr matrixRow row_mask = (matrixRow(1) << std::min(80, matrix_width)) - 1;
         typedef matrixRow matrixSol;
 
         template<typename t>
@@ -529,6 +529,7 @@ namespace shockhash {
             z = (z ^ (z >> 27)) * 0x94d049bb133111eb;
             return z ^ (z >> 31);
         }
+
     public:
 
         static inline __uint128_t findSeed(const std::vector<uint64_t> &keys) {
@@ -641,10 +642,13 @@ namespace shockhash {
                             continue;
                         }
                         for (int i = 0; i < leafSize; ++i) {
-                            std::cout << keys[i] <<" "<< (parity(keys[i] & uint64_t(res & row_mask)) ? std::to_string(newCandidateShifted.hashes[i]) : std::to_string(other.hashes[i]))<<" "<<std::to_string(newCandidateShifted.hashes[i])<<" "<<std::to_string(other.hashes[i])<< " "<<seed1<<" "<<seed2<<  std::endl;
-                            std::cout<<(CandidateFinder::hash(keys[i], seed1))<<" "<<CandidateFinder::hash(keys[i], seed2)<<std::endl;
+                            //std::cout << keys[i] <<" "<< (parity(keys[i] & uint64_t(res & row_mask)) ? std::to_string(newCandidateShifted.hashes[i]) : std::to_string(other.hashes[i]))<<" "<<std::to_string(newCandidateShifted.hashes[i])<<" "<<std::to_string(other.hashes[i])<< " "<<seed1<<" "<<seed2<<  std::endl;
+                            //std::cout<<(CandidateFinder::hash(keys[i], seed1))<<" "<<CandidateFinder::hash(keys[i], seed2)<<std::endl;
+                            std::cout << keys[i] << " " << " " << fullSeed << " " << uint64_t(res & row_mask)
+                                      << std::endl;
                         }
-                        std::cout<<fullSeed<<" "<<uint64_t(res & row_mask)<<std::endl;
+                        //std::cout << fullSeed << " " << uint64_t(res & row_mask) << std::endl;
+
                         //return fullSeed;
                         return (fullSeed << matrix_width) | res;
                     } else {
@@ -699,7 +703,7 @@ namespace shockhash {
             } else {
                 result = CandidateFinder::hash(key, seed2);
             }
-            std::cout << key <<" "<< result<<" "<<(CandidateFinder::hash(key, seed1))<<" "<<CandidateFinder::hash(key, seed2)<<" "<<seed1<<" "<<seed2<< std::endl;
+            //std::cout << key <<" "<< result<<" "<<(CandidateFinder::hash(key, seed1))<<" "<<CandidateFinder::hash(key, seed2)<<" "<<seed1<<" "<<seed2<< std::endl;
 
 
             assert(result <= leafSize);

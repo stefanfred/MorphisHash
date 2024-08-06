@@ -28,6 +28,7 @@
 namespace shockhash {
 static const int MAX_LEAF_SIZE2 = 138;
 
+static constexpr uint64_t mywidth = 14;
 // Optimal Golomb-Rice parameters for leaves. See golombMemoTuner.cpp.
 // Note that uneven leaf sizes are less efficient in ShockHash2.
     static constexpr uint8_t bij_memo2[MAX_LEAF_SIZE2 + 1] = {
@@ -112,8 +113,8 @@ static const int MAX_LEAF_SIZE2 = 138;
         array<uint64_t, MAX_BUCKET_SIZE> memo{0};
         size_t s = 0;
         for (; s <= LEAF_SIZE; ++s) {
-            memo[s] = uint64_t(bij_memo2[s]+LEAF_SIZE) << 27 | (s > 1) << 16 | (bij_memo2[s]+LEAF_SIZE);
-            assert(memo[s] >> 27 == bij_memo2[s]+LEAF_SIZE);
+            memo[s] = uint64_t(bij_memo2[s]+mywidth) << 27 | (s > 1) << 16 | (bij_memo2[s]+mywidth);
+            assert(memo[s] >> 27 == bij_memo2[s]+mywidth);
         }
         for (; s < MAX_BUCKET_SIZE; ++s) _fill_golomb_rice2<LEAF_SIZE>(s, &memo);
         return memo;
@@ -232,8 +233,8 @@ static const int MAX_LEAF_SIZE2 = 138;
                 level++;
             }
 
-            const auto b = reader.readNext(golomb_param(m));
-            static constexpr int matrix_width = min(80,LEAF_SIZE);
+            const auto b = reader.readNext(20);
+            static constexpr int matrix_width = mywidth;
             static constexpr __uint128_t row_mask = (__uint128_t(1) << matrix_width) - 1;
             uint64_t retrieved = parity(b & row_mask & hash.second);
             size_t seed = b >> matrix_width;
@@ -285,10 +286,12 @@ static const int MAX_LEAF_SIZE2 = 138;
 #endif
                 // Begin: difference to RecSplit.
                 std::vector<uint64_t> leafKeys(bucket.begin() + start, bucket.begin() + end);
+                std::cout<<"BUILD "<<start<< " "<<end<<std::endl;
                 x = shockhash2construct(m, leafKeys, ribbonInput);
                 // End: difference to RecSplit.
 
-                const auto log2golomb = golomb_param(m);
+                const auto log2golomb = 20;
+//                const auto log2golomb = golomb_param(m);
                 builder.appendFixed(x, log2golomb);
                 unary.push_back(x >> (log2golomb));
 

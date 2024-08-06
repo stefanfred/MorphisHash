@@ -178,7 +178,13 @@ template <sux::util::AllocType AT = sux::util::AllocType::MALLOC> class RiceBitV
                     result += pos;
                     result <<= log2golomb;
 
-                    result |= readFixed(log2golomb);
+
+                    // In the worst case, curr_fixed_offset is 7.
+                    // Loading only 64 bit here would then fail for log2golomb>(64-7)=57
+                    __uint128_t fixed;
+                    memcpy(&fixed, (uint8_t *)&data + curr_fixed_offset / 8, 16);
+                    result |= (fixed >> curr_fixed_offset % 8) & ((uint64_t(1) << log2golomb) - 1);
+                    curr_fixed_offset += log2golomb;
                     return result;
                 }
 

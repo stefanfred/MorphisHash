@@ -500,7 +500,7 @@ namespace shockhash {
     template<size_t leafSize, bool isolatedVertexFilter = false,
             template<size_t, bool> typename SeedCandidateFinder = BasicSeedCandidateFinder>
     class BijectionsShockHash2 {
-        static constexpr int matrix_width = leafSize;
+        static constexpr int matrix_width = 14;
         typedef __uint128_t matrixRow;
         static constexpr matrixRow row_mask = (matrixRow(1) << std::min(80, matrix_width)) - 1;
         typedef matrixRow matrixSol;
@@ -644,7 +644,7 @@ namespace shockhash {
                         for (int i = 0; i < leafSize; ++i) {
                             //std::cout << keys[i] <<" "<< (parity(keys[i] & uint64_t(res & row_mask)) ? std::to_string(newCandidateShifted.hashes[i]) : std::to_string(other.hashes[i]))<<" "<<std::to_string(newCandidateShifted.hashes[i])<<" "<<std::to_string(other.hashes[i])<< " "<<seed1<<" "<<seed2<<  std::endl;
                             //std::cout<<(CandidateFinder::hash(keys[i], seed1))<<" "<<CandidateFinder::hash(keys[i], seed2)<<std::endl;
-                            std::cout << keys[i] << " " << " " << fullSeed << " " << uint64_t(res & row_mask)
+                            std::cout << keys[i] << " " << " " << fullSeed << " " << uint64_t(res & row_mask)<<" "<<leafSize
                                       << std::endl;
                         }
                         //std::cout << fullSeed << " " << uint64_t(res & row_mask) << std::endl;

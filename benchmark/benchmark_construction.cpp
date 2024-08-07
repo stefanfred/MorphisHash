@@ -29,6 +29,7 @@ using ShockHashRotate = shockhash::ShockHash<l, true>;
 bool rotate = false;
 bool shockhash2 = false;
 bool shockhash2flat = false;
+bool useBurr = false;
 size_t numObjects = 1e6;
 size_t numQueries = 1e6;
 size_t leafSize = 20;
@@ -121,24 +122,25 @@ void construct() {
               << std::endl;
 }
 
-template<template<size_t, size_t> class RecSplit, size_t I, size_t WS>
+template<template<size_t, bool, size_t> class RecSplit, size_t I, size_t WS>
 void dispatchWidth() {
-    if constexpr (WS >= I || WS > shockhash::MAX_DIFF || WS - I > shockhash::MAX_RETRIEVAL_WIDTH) {
-        construct<RecSplit<I, 0>>();
-        std::cout << "Using Burr" << std::endl;
+    if(useBurr) {
+        construct<RecSplit<I, true, 0>>();
+    } else if constexpr (WS >= I || WS > shockhash::MAX_DIFF || I - WS > shockhash::MAX_RETRIEVAL_WIDTH) {
+        std::cerr << "The relativeWidth " << relativeWidth << " was not compiled into this binary." << std::endl;
     } else if (WS == relativeWidth) {
-        construct<RecSplit<I, WS>>();
+        construct<RecSplit<I, false, WS>>();
     } else {
         dispatchWidth<RecSplit, I, WS + 1>();
     }
 }
 
-template<template<size_t, size_t> class RecSplit, size_t I>
+template<template<size_t, bool, size_t> class RecSplit, size_t I>
 void dispatchLeafSize() {
     if constexpr (I <= 2) {
         std::cerr << "The leafSize " << leafSize << " was not compiled into this binary." << std::endl;
     } else if (I == leafSize) {
-        dispatchWidth<RecSplit, I, 0>();
+        dispatchWidth<RecSplit, I, 4>();
     } else {
         dispatchLeafSize<RecSplit, I - 2>();
     }
@@ -155,6 +157,7 @@ int main(int argc, const char *const *argv) {
     cmd.add_bool('r', "rotate", rotate, "Apply rotation fitting");
     cmd.add_bool('2', "shockhash2", shockhash2, "ShockHash2");
     cmd.add_bool('f', "shockhash2flat", shockhash2flat, "ShockHash2 flat");
+    cmd.add_bool('u', "useburr", useBurr, "ShockHash2 burr mode");
     cmd.add_bytes('t', "threads", threads, "Number of threads");
 
     if (!cmd.process(argc, argv)) {

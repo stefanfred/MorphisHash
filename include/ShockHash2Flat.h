@@ -46,7 +46,7 @@ class ShockHash2Flat {
         std::map<size_t, size_t> seedsFallback;
         std::vector<size_t> layerBases;
 
-        ShockHash2<k, w> fallbackPhf;
+        ShockHash2<k, true, 0> fallbackPhf;
         size_t N;
         size_t nbuckets;
         pasta::BitVector freePositionsBv;
@@ -120,7 +120,7 @@ class ShockHash2Flat {
             for (auto &hash : hashes) {
                 fallbackPhfContent.push_back(std::to_string(hash.mhc));
             }
-            fallbackPhf = ShockHash2<k, w>(fallbackPhfContent, 2000, 1);
+            fallbackPhf = ShockHash2<k, true, 0>(fallbackPhfContent, 2000, 1);
             size_t additionalFreePositions = hashes.size() - freePositions.size();
             size_t nbucketsHandled = layerBases.back();
             {

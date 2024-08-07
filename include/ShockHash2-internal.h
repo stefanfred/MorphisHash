@@ -67,7 +67,7 @@ namespace shockhash {
     }
 
     class BasicSeedCandidateFinder {
-                public:
+    public:
         template<size_t leafSize, bool isolatedVertexFilter = false>
         class Finder {
         private:
@@ -566,7 +566,7 @@ namespace shockhash {
     static inline void constructRetrieval(const std::vector<uint64_t> &keys, size_t seed,
                                           std::vector<std::pair<uint64_t, uint8_t>> &retrieval, size_t leafSize) {
 
-        auto [seed1, seed2] = unpairTriangular(seed>>12);
+        auto [seed1, seed2] = unpairTriangular(seed >> 12);
         shockhash::TinyBinaryCuckooHashTable table(leafSize);
         for (uint64_t key: keys) {
             table.prepare(shockhash::HashedKey(key));
@@ -590,17 +590,22 @@ namespace shockhash {
         }
     }
 
+    static uint64_t inline sh2remix(uint64_t z) {
+        z = (z ^ (z >> 30)) * 0xbf58476d1ce4e5b9;
+        z = (z ^ (z >> 27)) * 0x94d049bb133111eb;
+        return z ^ (z >> 31);
+    }
 
 
-    static constexpr int MAX_LEAF_SIZE2 = 138;
-    static constexpr int MAX_RETRIEVAL_WIDTH = 127;
-    static constexpr int MAX_DIFF = 7;
+    static constexpr int MAX_LEAF_SIZE2 = 30;
+    static constexpr int MAX_RETRIEVAL_WIDTH = MAX_LEAF_SIZE2;
+    static constexpr int MAX_DIFF = 4;
 
 /**
  * ShockHash2 base case.
  * Note that while this can be used with uneven leaf sizes, it achieves suboptimal space and time.
  */
-    template<size_t leafSize, template<size_t, bool> typename SeedCandidateFinder, bool isolatedVertexFilter = false, size_t matrix_width = leafSize>
+    template<size_t leafSize, template<size_t, bool> typename SeedCandidateFinder, bool isolatedVertexFilter = false, bool useBurr = false, size_t matrix_width = leafSize>
     class BijectionsShockHash2 {
 
     private:
@@ -626,16 +631,34 @@ namespace shockhash {
             return __builtin_parityll(val); //generalize 128 bit
         }
 
-        static uint64_t inline hashToRow(uint64_t z) {
-            z = (z ^ (z >> 30)) * 0xbf58476d1ce4e5b9;
-            z = (z ^ (z >> 27)) * 0x94d049bb133111eb;
-            return z ^ (z >> 31);
-        }
+
 
     public:
 
         static inline __uint128_t findSeed(const std::vector<uint64_t> &keys) {
             assert(keys.size() == leafSize);
+            if constexpr (not useBurr and matrix_width == 0) {
+                size_t seed = 0;
+                std::bitset<leafSize> taken;
+                while (true) {
+                    taken.reset();
+                    bool works = true;
+                    for (uint64_t k : keys) {
+                        uint64_t pos = sh2remix(k ^ seed) % leafSize;
+                        if(taken[pos]) {
+                            works = false;
+                            seed++;
+                            break;
+                        } else {
+                            taken[pos] = true;
+                        }
+                    }
+                    if (works) {
+                        return seed;
+                    }
+                }
+            }
+
             CandidateFinder seedCandidateFinder(keys);
             std::vector<SeedCache<leafSize, isolatedVertexFilter>> seedsCandidates;
             seedsCandidates.push_back(seedCandidateFinder.next());
@@ -675,15 +698,17 @@ namespace shockhash {
                         continue;
                     }
 
-                    if constexpr (matrix_width > 0) {
+                    if constexpr (useBurr) {
+                        return fullSeed;
+                    } else {
                         std::array<matrixRow, leafSize> matrix{};
                         std::bitset<leafSize> sol{};
                         sol.set();
 
                         // insert keys
                         for (size_t i = 0; i < leafSize; i++) {
-                            matrixRow hash = keys[i] & row_mask;
-                            // matrixRow hash = hashToRow(keys[i] ^ fullSeed);
+                            //matrixRow hash = keys[i] & row_mask;
+                            matrixRow hash = sh2remix(keys[i] ^ fullSeed) & row_mask;
                             auto addCand = [&](size_t end, bool orientation) {
                                 matrix[end] ^= hash;
                                 if (!orientation)
@@ -746,23 +771,20 @@ namespace shockhash {
                         for (size_t i = 0; i < leafSize; ++i) {
                             //std::cout << keys[i] <<" "<< (parity(keys[i] & uint64_t(res & row_mask)) ? std::to_string(newCandidateShifted.hashes[i]) : std::to_string(other.hashes[i]))<<" "<<std::to_string(newCandidateShifted.hashes[i])<<" "<<std::to_string(other.hashes[i])<< " "<<seed1<<" "<<seed2<<  std::endl;
                             //std::cout<<(CandidateFinder::hash(keys[i], seed1))<<" "<<CandidateFinder::hash(keys[i], seed2)<<std::endl;
-                            std::cout << keys[i] << " " << " " << fullSeed << " " << uint64_t(res & row_mask) << " "
+                            /*std::cout << keys[i] << " " << " " << fullSeed << " " << uint64_t(res & row_mask) << " "
                                       << leafSize
-                                      << std::endl;
+                                      << std::endl;*/
                         }
                         //std::cout << fullSeed << " " << uint64_t(res & row_mask) << std::endl;
 
                         //return fullSeed;
                         return (__uint128_t(fullSeed) << matrix_width) | res;
-                    } else {
-                        return fullSeed;
                     }
                 }
                 seedsCandidates.push_back(newCandidate);
             }
             return 0;
         }
-
 
 
         inline double calculateBijection(const std::vector<uint64_t> &keys) {

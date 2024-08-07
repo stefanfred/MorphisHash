@@ -30,22 +30,7 @@ namespace shockhash {
 
 // Optimal Golomb-Rice parameters for leaves. See golombMemoTuner.cpp.
 // Note that uneven leaf sizes are less efficient in ShockHash2.
-    static constexpr uint8_t bij_memo2[MAX_LEAF_SIZE2 + 1] = {
-            0, 0, 0, 0, 0, 0, 1, 3, 2, 4, // 0..9
-            4, 6, 5, 7, 6, 8, 7, 8, 7, 9, // 10..19
-            8, 10, 9, 11, 10, 11, 11, 12, 11, 13, // 20..29
-            12, 14, 13, 14, 14, 15, 14, 16, 15, 17, // 30..39
-            16, 18, 17, 18, 17, 19, 18, 20, 19, 21, // 40..49
-            20, 22, 21, 22, 22, 23, 22, 24, 23, 25, // 50..59
-            24, 26, 25, 27, 26, 27, 27, 28, 27, 29, // 60..69
-            28, 30, 29, 31, 30, 32, 31, 33, 32, 33, // 70..79
-            33, 34, 33, 35, 34, 36, 35, 37, 36, 38, // 80..89
-            37, 39, 38, 40, 38, 40, 40, 41, 40, 42, // 90..99
-            41, 43, 42, 44, 43, 45, 44, 45, 45, 47, // 100..109
-            46, 47, 46, 48, 47, 49, 48, 50, 49, 51, // 110..119
-            50, 52, 51, 53, 52, 54, 53, 54, 54,
-            55, 54, 56, 55, 58, 56, 58, 56, 59, 58, // 130..138*/
-    };
+    static constexpr uint8_t bij_memo2[MAX_LEAF_SIZE2 + 1] = { 0, 0, 0,  1,  3,  7,  6,  9,  9, 11, 11, 14, 14, 17, 17, 20, 20, 23, 23, 25, 25, 28, 28, 31, 31, 34, 34, 37, 37, 39, 39, };
 
     template<size_t LEAF_SIZE>
     class SplittingStrategy2 {
@@ -62,7 +47,7 @@ namespace shockhash {
 // (following 11 bits) and the sum of the Golomb-Rice codelengths in the same
 // subtree (lower 16 bits).
 
-    template<size_t LEAF_SIZE, size_t RETRIEVAL_WIDTH>
+    template<size_t LEAF_SIZE, bool useBurr, size_t RETRIEVAL_DIFF>
     static constexpr void _fill_golomb_rice2(const size_t m, array<uint64_t, MAX_BUCKET_SIZE> *memo) {
         array<long, MAX_FANOUT> k{0};
 
@@ -107,16 +92,15 @@ namespace shockhash {
         (*memo)[m] |= nodes << 16;
     }
 
-    template<size_t LEAF_SIZE, size_t RETRIEVAL_DIFF>
+    template<size_t LEAF_SIZE, bool useBurr, size_t RETRIEVAL_DIFF>
     static constexpr array<uint64_t, MAX_BUCKET_SIZE> fill_golomb_rice2() {
         array<uint64_t, MAX_BUCKET_SIZE> memo{0};
         size_t s = 0;
         for (; s <= LEAF_SIZE; ++s) {
-            uint8_t increment = (s > RETRIEVAL_DIFF and s > 1) ? (s - RETRIEVAL_DIFF) : 0;
-            memo[s] = (uint64_t(bij_memo2[s]) + increment) << 27 | (s > 1) << 16 | ((bij_memo2[s]) + increment);
-            assert(memo[s] >> 27 == bij_memo2[s] + increment);
+            memo[s] = (uint64_t(bij_memo2[s])) << 27 | (s > 1) << 16 | ((bij_memo2[s]));
+            assert(memo[s] >> 27 == bij_memo2[s]);
         }
-        for (; s < MAX_BUCKET_SIZE; ++s) _fill_golomb_rice2<LEAF_SIZE, RETRIEVAL_DIFF>(s, &memo);
+        for (; s < MAX_BUCKET_SIZE; ++s) _fill_golomb_rice2<LEAF_SIZE, useBurr, RETRIEVAL_DIFF>(s, &memo);
         return memo;
     }
 
@@ -125,7 +109,7 @@ namespace shockhash {
         return __builtin_parityll(val); //generalize 128 bit
     }
 
-    template<size_t LEAF_SIZE, size_t RETRIEVAL_DIFF>
+    template<size_t LEAF_SIZE, bool useBurr, size_t RETRIEVAL_DIFF>
     class ShockHash2 {
         static_assert(LEAF_SIZE <= MAX_LEAF_SIZE2);
         static constexpr AllocType AT = sux::util::AllocType::MALLOC;
@@ -135,7 +119,7 @@ namespace shockhash {
 
         // For each bucket size, the Golomb-Rice parameter (upper 8 bits) and the number of bits to
         // skip in the fixed part of the tree (lower 24 bits).
-        static constexpr array<uint64_t, MAX_BUCKET_SIZE> memo = fill_golomb_rice2<LEAF_SIZE, RETRIEVAL_DIFF>();
+        static constexpr array<uint64_t, MAX_BUCKET_SIZE> memo = fill_golomb_rice2<LEAF_SIZE, useBurr, RETRIEVAL_DIFF>();
 
         size_t nbuckets;
         size_t keys_count;
@@ -233,16 +217,26 @@ namespace shockhash {
                 level++;
             }
 
-            const auto b = reader.readNext(golomb_param(m));
-            //std::cout << "READ " << golomb_param(m) <<" "<<golomb_param(0)<<" "<<golomb_param(10)<< std::endl;
-            size_t width = m > RETRIEVAL_DIFF ? m - RETRIEVAL_DIFF : 0;
-            __uint128_t row_mask = (__uint128_t (1) << (m - RETRIEVAL_DIFF)) - 1; // ToDo: TYPE
-            uint64_t retrieved = parity(b & row_mask & hash.second);
-            size_t seed = b >> width;
-            //std::cout << hash.second << " " << seed << " " << uint64_t(b & row_mask) << std::endl;
-            // std::cout<<LEAF_SIZE<<std::endl;
-            return cum_keys + queryHash(seed, hash.second, retrieved, m); // ToDo: carefull wth width equals zero, maybe extra bool for burr use
-            // End: difference to RecSplit.
+            if constexpr (useBurr) {
+
+            } else {
+                const auto b = reader.readNext(golomb_param(m));
+                //std::cout << "READ " << golomb_param(m) <<" "<<golomb_param(0)<<" "<<golomb_param(10)<< std::endl;
+                size_t width = m > RETRIEVAL_DIFF ? (m - RETRIEVAL_DIFF) : 0;
+                size_t seed = b >> width;
+                uint64_t remixed = sh2remix(hash.second ^ seed);
+                uint64_t result;
+                if (width == 0) {
+                    result = remixed % m;
+                } else {
+                    __uint128_t row_mask = (__uint128_t(1) << (m - RETRIEVAL_DIFF)) - 1; // ToDo: TYPE
+                    uint64_t retrieved = parity(b & row_mask & remixed);
+                    result = queryHash(seed, hash.second, retrieved, m);
+                }
+                //std::cout << hash.second << " " << seed << " " << uint64_t(b & row_mask) << std::endl;
+                // std::cout<<LEAF_SIZE<<std::endl;
+                return cum_keys + result;
+            }
         }
 
         /** Returns the value associated with the given key.
@@ -287,12 +281,12 @@ namespace shockhash {
 #endif
                 // Begin: difference to RecSplit.
                 std::vector<uint64_t> leafKeys(bucket.begin() + start, bucket.begin() + end);
-                std::cout << "BUILD " << start << " " << end << std::endl;
-                x = shockhash2construct(m, m > RETRIEVAL_DIFF ? m - RETRIEVAL_DIFF : 0, leafKeys, ribbonInput);
+                //std::cout << "BUILD " << start << " " << end << std::endl;
+                x = shockhash2construct(m, m > RETRIEVAL_DIFF ? m - RETRIEVAL_DIFF : 0, leafKeys, ribbonInput, useBurr);
                 // End: difference to RecSplit.
 
                 const auto log2golomb = golomb_param(m);
-                std::cout << "WRITE " << golomb_param(m) << std::endl;
+                //std::cout << "WRITE " << golomb_param(m) << std::endl;
                 builder.appendFixed(x, log2golomb);
                 unary.push_back(x >> (log2golomb));
 
@@ -331,7 +325,8 @@ namespace shockhash {
                     unary.push_back(x >> log2golomb);
 
 #ifdef STATS
-                    time_split[min(MAX_LEVEL_TIME, level)] += duration_cast<nanoseconds>(high_resolution_clock::now() - start_time).count();
+                    time_split[min(MAX_LEVEL_TIME, level)] += duration_cast<nanoseconds>(
+                            high_resolution_clock::now() - start_time).count();
                     split_opt += log2(x + 1);
 #endif
                     recSplit(bucket, temp, start, start + split, builder, unary, level + 1, tinyBinaryCuckooHashTable,
@@ -366,7 +361,8 @@ namespace shockhash {
                     unary.push_back(x >> log2golomb);
 
 #ifdef STATS
-                    time_split[min(MAX_LEVEL_TIME, level)] += duration_cast<nanoseconds>(high_resolution_clock::now() - start_time).count();
+                    time_split[min(MAX_LEVEL_TIME, level)] += duration_cast<nanoseconds>(
+                            high_resolution_clock::now() - start_time).count();
                     split_opt += log2(x + 1);
 #endif
                     size_t i;
@@ -402,7 +398,8 @@ namespace shockhash {
                     unary.push_back(x >> log2golomb);
 
 #ifdef STATS
-                    time_split[min(MAX_LEVEL_TIME, level)] += duration_cast<nanoseconds>(high_resolution_clock::now() - start_time).count();
+                    time_split[min(MAX_LEVEL_TIME, level)] += duration_cast<nanoseconds>(
+                            high_resolution_clock::now() - start_time).count();
                     split_opt += log2(x + 1);
 #endif
                     size_t i;
@@ -528,12 +525,12 @@ namespace shockhash {
 
 #ifdef STATS
             // Evaluation purposes only
-            double ef_sizes = (double)ef.bitCountCumKeys() / keys_count;
-            double ef_bits = (double)ef.bitCountPosition() / keys_count;
-            double rice_desc = (double)builder.getBits() / keys_count;
-            double retrieval = 8.0 * (double)ribbon->size() / keys_count;
-            printf("Elias-Fano cumul sizes:  %f bits/bucket\n", (double)ef.bitCountCumKeys() / nbuckets);
-            printf("Elias-Fano cumul bits:   %f bits/bucket\n", (double)ef.bitCountPosition() / nbuckets);
+            double ef_sizes = (double) ef.bitCountCumKeys() / keys_count;
+            double ef_bits = (double) ef.bitCountPosition() / keys_count;
+            double rice_desc = (double) builder.getBits() / keys_count;
+            double retrieval = 8.0 * (double) ribbon.sizeBytes() / keys_count;
+            printf("Elias-Fano cumul sizes:  %f bits/bucket\n", (double) ef.bitCountCumKeys() / nbuckets);
+            printf("Elias-Fano cumul bits:   %f bits/bucket\n", (double) ef.bitCountPosition() / nbuckets);
             printf("Elias-Fano cumul sizes:  %f bits/key\n", ef_sizes);
             printf("Elias-Fano cumul bits:   %f bits/key\n", ef_bits);
             printf("Rice-Golomb descriptors: %f bits/key\n", rice_desc);
@@ -541,9 +538,9 @@ namespace shockhash {
             printf("Total bits:              %f bits/key\n", ef_sizes + ef_bits + rice_desc + retrieval);
             printf("sizeof(this):            %f bits/key\n", (8.0 * sizeof(*this)) / keys_count);
 
-            printf("Split bits:       %16.3f\n", ((double)split_fixed + split_unary) / keys_count);
+            printf("Split bits:       %16.3f\n", ((double) split_fixed + split_unary) / keys_count);
             printf("Split bits opt:   %16.3f\n", split_opt / keys_count);
-            printf("Bij bits:         %16.3f\n", ((double)bij_fixed + bij_unary) / keys_count);
+            printf("Bij bits:         %16.3f\n", ((double) bij_fixed + bij_unary) / keys_count);
             printf("Bij bits opt:     %16.3f\n", bij_opt / keys_count);
 
             printf("\n");

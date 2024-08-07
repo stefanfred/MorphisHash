@@ -105,7 +105,7 @@ void construct() {
     if (rotate) {
         method += "Rotate";
     } else if (shockhash2) {
-        method += "2";
+        method += (useBurr ? "2Burr" : "2Fixed");
     } else if (shockhash2flat) {
         method += "2flat";
     }
@@ -124,7 +124,7 @@ void construct() {
 
 template<template<size_t, bool, size_t> class RecSplit, size_t I, size_t WS>
 void dispatchWidth() {
-    if(useBurr) {
+    if (useBurr) {
         construct<RecSplit<I, true, 0>>();
     } else if constexpr (WS >= I || WS > shockhash::MAX_DIFF || I - WS > shockhash::MAX_RETRIEVAL_WIDTH) {
         std::cerr << "The relativeWidth " << relativeWidth << " was not compiled into this binary." << std::endl;
@@ -142,7 +142,7 @@ void dispatchLeafSize() {
     } else if (I == leafSize) {
         dispatchWidth<RecSplit, I, 4>();
     } else {
-        dispatchLeafSize<RecSplit, I - 2>();
+        dispatchLeafSize<RecSplit, I - 1>();
     }
 }
 

@@ -30,7 +30,11 @@ namespace shockhash {
 
 // Optimal Golomb-Rice parameters for leaves. See golombMemoTuner.cpp.
 // Note that uneven leaf sizes are less efficient in ShockHash2.
-    static constexpr uint8_t bij_memo2[MAX_LEAF_SIZE2 + 1] = { 0, 0, 0,  1,  3,  7,  6,  9,  9, 11, 11, 14, 14, 17, 17, 20, 20, 23, 23, 25, 25, 28, 28, 31, 31, 34, 34, 37, 37, 39, 39, };
+    static constexpr uint8_t bij_memo2[
+            MAX_LEAF_SIZE2 + 1] = {0, 0, 0, 1, 3, 7, 6, 9, 9, 12, 11, 14, 14, 17, 17, 20, 20, 23, 22, 25, 25, 28, 28,
+                                   31, 31, 34, 34, 37, 37, 39, 39, 42, 42, 45, 45, 48, 48, 51, 51, 54, 54, 56, 56, 59,
+                                   59, 62, 62, 65, 65, 68, 68, 71, 71, 74, 74, 76, 76, 79, 79, 82, 82, 85, 85, 88,};
+
 
     template<size_t LEAF_SIZE>
     class SplittingStrategy2 {
@@ -220,20 +224,20 @@ namespace shockhash {
             if constexpr (useBurr) {
 
             } else {
-                const auto b = reader.readNext(golomb_param(m));
-                //std::cout << "READ " << golomb_param(m) <<" "<<golomb_param(0)<<" "<<golomb_param(10)<< std::endl;
                 size_t width = m > RETRIEVAL_DIFF ? (m - RETRIEVAL_DIFF) : 0;
-                size_t seed = b >> width;
+                const auto seed = reader.readNext(golomb_param(m) - width);
                 uint64_t remixed = sh2remix(hash.second ^ seed);
                 uint64_t result;
                 if (width == 0) {
                     result = remixed % m;
                 } else {
-                    __uint128_t row_mask = (__uint128_t(1) << (m - RETRIEVAL_DIFF)) - 1; // ToDo: TYPE
-                    uint64_t retrieved = parity(b & row_mask & remixed);
+                    const auto sol = reader.readFixed(width);
+                    uint64_t row_mask = (uint64_t(1) << (width)) - 1; // ToDo: TYPE
+                    //std::cout << "READ " << seed << " " << (sol & row_mask) << std::endl;
+                    uint64_t retrieved = parity(sol & row_mask & remixed);
                     result = queryHash(seed, hash.second, retrieved, m);
+                    //std::cout << hash.second << " "<< queryHash(seed, hash.second, 0, m)<<" "<<queryHash(seed, hash.second, 1, m) <<" "<<result<< std::endl;
                 }
-                //std::cout << hash.second << " " << seed << " " << uint64_t(b & row_mask) << std::endl;
                 // std::cout<<LEAF_SIZE<<std::endl;
                 return cum_keys + result;
             }
@@ -282,13 +286,18 @@ namespace shockhash {
                 // Begin: difference to RecSplit.
                 std::vector<uint64_t> leafKeys(bucket.begin() + start, bucket.begin() + end);
                 //std::cout << "BUILD " << start << " " << end << std::endl;
-                x = shockhash2construct(m, m > RETRIEVAL_DIFF ? m - RETRIEVAL_DIFF : 0, leafKeys, ribbonInput, useBurr);
-                // End: difference to RecSplit.
+                size_t width = m > RETRIEVAL_DIFF ? (m - RETRIEVAL_DIFF) : 0;
+                __uint128_t shseed = shockhash2construct(m, width, leafKeys, ribbonInput, useBurr);
 
                 const auto log2golomb = golomb_param(m);
-                //std::cout << "WRITE " << golomb_param(m) << std::endl;
-                builder.appendFixed(x, log2golomb);
-                unary.push_back(x >> (log2golomb));
+                builder.appendFixed(shseed >> width, log2golomb - width);
+                unary.push_back(shseed >> log2golomb);
+                if (width > 0) {
+                    __uint128_t row_mask = (__uint128_t(1) << (width)) - 1;
+                    //std::cout << "WRITE " << uint64_t (shseed>> (width))<<" "<<uint64_t (shseed & row_mask)<<" "<<uint64_t (shseed >> log2golomb)<<" "<<log2golomb << std::endl;
+                    builder.appendFixed(shseed& row_mask, width);
+                }
+                // End: difference to RecSplit.
 
 #ifdef STATS
                 bij_unary += 1 + (x >> log2golomb);

@@ -17,14 +17,14 @@ void dispatchLeafSize() {
 
     std::vector<uint64_t> leaf(leafSize);
     util::XorShift64 prng;
-    std::vector<size_t> seeds;
+    std::vector<__uint128_t> seeds;
     size_t iterations = 10;
     if (leafSize < 50) {
-        iterations = 10000;
-    } else if (leafSize < 80) {
         iterations = 1000;
-    } else if (leafSize < 130) {
+    } else if (leafSize < 80) {
         iterations = 100;
+    } else if (leafSize < 130) {
+        iterations = 10;
     }
     seeds.reserve(iterations);
     for (size_t i = 0; i < iterations; i++) {
@@ -36,9 +36,9 @@ void dispatchLeafSize() {
 
     size_t spaceBest = std::numeric_limits<size_t>::max();
     size_t lowerBest = 0;
-    for (size_t lower = 0; lower < 60; lower++) {
+    for (size_t lower = 0; lower < 128; lower++) {
         size_t spaceBits = 0;
-        for (size_t seed : seeds) {
+        for (__uint128_t seed : seeds) {
             spaceBits += (seed >> lower) + 1 + lower;
         }
         if (spaceBits < spaceBest) {

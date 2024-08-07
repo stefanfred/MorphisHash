@@ -71,11 +71,14 @@ namespace shockhash {
         template<size_t leafSize, bool isolatedVertexFilter = false>
         class Finder {
         private:
-            const std::vector<uint64_t> &keys;
             size_t currentSeed = 0;
         public:
-            explicit Finder(const std::vector<uint64_t> &keys) : keys(keys) {
+            std::array<uint64_t, leafSize> keys = {0};
 
+            explicit Finder(const std::vector<uint64_t> &inKeys) {
+                for (int i = 0; i < leafSize; ++i) {
+                    keys[i] = inKeys[i];
+                }
             }
 
             inline SeedCache<leafSize, isolatedVertexFilter> next() {
@@ -117,7 +120,6 @@ namespace shockhash {
         template<size_t leafSize, bool isolatedVertexFilter = false>
         class Finder {
         private:
-            std::array<uint64_t, leafSize> keys = {0};
             uint64_t sizeSetA = 0;
             size_t currentSeed = -1;
             size_t currentRotation = (leafSize + 1) / 2;
@@ -125,6 +127,8 @@ namespace shockhash {
             uint64_t takenB = 0;
             SeedCache<leafSize, isolatedVertexFilter> seedCache; // NOLINT(cppcoreguidelines-pro-type-member-init)
         public:
+            std::array<uint64_t, leafSize> keys = {0};
+
             explicit Finder(const std::vector<uint64_t> &keysIn) {
                 for (size_t i = 0; i < leafSize; i++) {
                     if ((keysIn[i] & 1) == 0) {
@@ -402,13 +406,14 @@ namespace shockhash {
         class Finder {
         public:
             static constexpr double E_HALF = 1.359140914;
-            std::array<uint64_t, leafSize> keys = {0};
             uint64_t sizeSetA = 0;
             size_t currentSeed = -1;
             CandidateList<leafSize> candidatesA;
             CandidateList<leafSize> candidatesB;
             std::vector<SeedCache<leafSize, isolatedVertexFilter>> extractedCandidates;
         public:
+            std::array<uint64_t, leafSize> keys = {0};
+
             explicit Finder(const std::vector<uint64_t> &keysIn)
                     : candidatesA(std::pow(E_HALF, keysIn.size() / 2)),
                       candidatesB(std::pow(E_HALF, keysIn.size() / 2)) {
@@ -512,14 +517,14 @@ namespace shockhash {
     using QuadSplitCandidateFinderBuckets = QuadSplitCandidateFinder::Finder<CandidateBuckets, leafSize, isolatedVertexFilter>;
 
 
-    static constexpr size_t SockHash2SeedFinderLeafSizeThreshold = 100;
+    static constexpr size_t SockHash2SeedFinderLeafSizeThreshold = 10;
 
 
     static inline size_t queryCandidate(size_t seed, uint64_t key, size_t leafSize) {
-        if (leafSize > SockHash2SeedFinderLeafSizeThreshold) {
-            return QuadSplitCandidateFinder::hash(key, seed, leafSize);
-        } else {
+        if (leafSize < SockHash2SeedFinderLeafSizeThreshold) {
             return BasicSeedCandidateFinder::hash(key, seed, leafSize);
+        } else {
+            return QuadSplitCandidateFinder::hash(key, seed, leafSize);
         }
     }
 
@@ -597,7 +602,7 @@ namespace shockhash {
     }
 
 
-    static constexpr int MAX_LEAF_SIZE2 = 30;
+    static constexpr int MAX_LEAF_SIZE2 = 63;
     static constexpr int MAX_RETRIEVAL_WIDTH = MAX_LEAF_SIZE2;
     static constexpr int MAX_DIFF = 4;
 
@@ -626,26 +631,28 @@ namespace shockhash {
             return (number & ~(t(1) << n)) | (t(x) << n);
         }
 
-        template<typename t>
-        static int parity(t val) {
-            return __builtin_parityll(val); //generalize 128 bit
+        static int parity(uint64_t val) {
+            return __builtin_parityll(val);
         }
 
+        static int parity(__uint128_t val) {
+            return parity(uint64_t(val>>64) ^ uint64_t(val));
+        }
 
 
     public:
 
-        static inline __uint128_t findSeed(const std::vector<uint64_t> &keys) {
-            assert(keys.size() == leafSize);
+        static inline __uint128_t findSeed(const std::vector<uint64_t> &inKeys) {
+            assert(inKeys.size() == leafSize);
             if constexpr (not useBurr and matrix_width == 0) {
                 size_t seed = 0;
                 std::bitset<leafSize> taken;
                 while (true) {
                     taken.reset();
                     bool works = true;
-                    for (uint64_t k : keys) {
+                    for (uint64_t k: inKeys) {
                         uint64_t pos = sh2remix(k ^ seed) % leafSize;
-                        if(taken[pos]) {
+                        if (taken[pos]) {
                             works = false;
                             seed++;
                             break;
@@ -658,8 +665,8 @@ namespace shockhash {
                     }
                 }
             }
-
-            CandidateFinder seedCandidateFinder(keys);
+            CandidateFinder seedCandidateFinder(inKeys);
+            std::array<uint64_t, leafSize> keys = seedCandidateFinder.keys;
             std::vector<SeedCache<leafSize, isolatedVertexFilter>> seedsCandidates;
             seedsCandidates.push_back(seedCandidateFinder.next());
             CuckooUnionFind unionFind(leafSize);
@@ -680,6 +687,10 @@ namespace shockhash {
                     for (; li < leafSize; li++) {
                         size_t end1 = newCandidateShifted.hashes[li];
                         size_t end2 = other.hashes[li];
+                        /*std::cout << keys[li] << " " << end1 << " " << end2 << " "
+                                  << (QuadSplitCandidateFinder::hash(keys[li], newCandidateShifted.seed, leafSize) +leafSize / 2) <<" "
+                                  << QuadSplitCandidateFinder::hash(keys[li], other.seed, leafSize)
+                                  << std::endl;*/
                         if (!unionFind.unionIsStillPseudoforest(end1, end2)) {
                             break;
                         }
@@ -756,6 +767,7 @@ namespace shockhash {
                                 if (s) {
                                     // contradiction
                                     fail = true;
+                                    break;
                                 } else {
                                     // redundant
                                     continue;
@@ -769,8 +781,13 @@ namespace shockhash {
                             continue;
                         }
                         for (size_t i = 0; i < leafSize; ++i) {
+                            /*std::cout << keys[i] << " " << queryHash(fullSeed, keys[i], 0, leafSize) << " "
+                                      << queryHash(fullSeed, keys[i], 1, leafSize) << " "
+                                      << queryHash(fullSeed, keys[i],
+                                                   parity(res & row_mask & sh2remix(keys[i] ^ fullSeed)), leafSize)
+                                      << std::endl;*/
                             //std::cout << keys[i] <<" "<< (parity(keys[i] & uint64_t(res & row_mask)) ? std::to_string(newCandidateShifted.hashes[i]) : std::to_string(other.hashes[i]))<<" "<<std::to_string(newCandidateShifted.hashes[i])<<" "<<std::to_string(other.hashes[i])<< " "<<seed1<<" "<<seed2<<  std::endl;
-                            //std::cout<<(CandidateFinder::hash(keys[i], seed1))<<" "<<CandidateFinder::hash(keys[i], seed2)<<std::endl;
+                            //std::cout<<(CandidateFinder::Finder::hash(keys[i], seed1))<<" "<<CandidateFinder::hash(keys[i], seed2)<<std::endl;
                             /*std::cout << keys[i] << " " << " " << fullSeed << " " << uint64_t(res & row_mask) << " "
                                       << leafSize
                                       << std::endl;*/

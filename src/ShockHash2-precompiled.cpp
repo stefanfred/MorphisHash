@@ -4,12 +4,12 @@
 namespace shockhash {
 
     template<size_t I, size_t WS, bool burr>
-    size_t construct(std::vector<std::pair<uint64_t, uint8_t>> &ribbonInput,
+    __uint128_t construct(std::vector<std::pair<uint64_t, uint8_t>> &ribbonInput,
                      std::vector<uint64_t> &leafKeys) {
-        using SH = std::conditional_t<false,
-                BijectionsShockHash2<I, QuadSplitCandidateFinderList, true, burr, I - WS>,
-                BijectionsShockHash2<I, BasicSeedCandidateFinder::Finder, true, burr, I - WS>>;
-        size_t x = SH::findSeed(leafKeys);
+        using SH = std::conditional_t<I < SockHash2SeedFinderLeafSizeThreshold,
+                BijectionsShockHash2<I, BasicSeedCandidateFinder::Finder, true, burr, I - WS>,
+                BijectionsShockHash2<I, QuadSplitCandidateFinderList, true, burr, I - WS>>;
+        __uint128_t x = SH::findSeed(leafKeys);
         if(burr) {
             constructRetrieval(leafKeys, x, ribbonInput, I);
         }
@@ -17,7 +17,7 @@ namespace shockhash {
     }
 
     template<size_t I, size_t WS>
-    size_t dispatchWidth(size_t width,
+    __uint128_t dispatchWidth(size_t width,
                          std::vector<std::pair<uint64_t, uint8_t>> &ribbonInput,
                          std::vector<uint64_t> &leafKeys, bool useBurr) {
         if (useBurr) {
@@ -34,7 +34,7 @@ namespace shockhash {
     }
 
     template<size_t I>
-    size_t dispatchLeafSize(size_t leafSize, size_t width,
+    __uint128_t dispatchLeafSize(size_t leafSize, size_t width,
                             std::vector<std::pair<uint64_t, uint8_t>> &ribbonInput,
                             std::vector<uint64_t> &leafKeys, bool useBurr) {
         if constexpr (I <= 1) {
@@ -48,7 +48,7 @@ namespace shockhash {
     }
 
 
-    size_t shockhash2construct(size_t leafSize, size_t width, std::vector<uint64_t> &leafKeys,
+    __uint128_t shockhash2construct(size_t leafSize, size_t width, std::vector<uint64_t> &leafKeys,
                                std::vector<std::pair<uint64_t, uint8_t>> &ribbonInput, bool useBurr) {
         return dispatchLeafSize<shockhash::MAX_LEAF_SIZE2>(leafSize, width, ribbonInput, leafKeys, useBurr);
     }

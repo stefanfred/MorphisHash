@@ -75,6 +75,9 @@ namespace shockhash {
             }
 
             void appendFixed(const uint64_t v, const int log2golomb) {
+                if(log2golomb == 0) {
+                    return;
+                }
                 const uint64_t lower_bits = v & ((uint64_t(1) << (log2golomb - 1) << 1) - 1); // weird shifting to support 64 bit
                 int used_bits = bit_count & 63;
 

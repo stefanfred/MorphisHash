@@ -137,7 +137,7 @@ void dispatchWidth() {
 
 template<template<size_t, bool, size_t> class RecSplit, size_t I>
 void dispatchLeafSize() {
-    if constexpr (I <= 2) {
+    if constexpr (I <= 1) {
         std::cerr << "The leafSize " << leafSize << " was not compiled into this binary." << std::endl;
     } else if (I == leafSize) {
         dispatchWidth<RecSplit, I, 4>();

@@ -31,9 +31,12 @@ namespace shockhash {
 // Optimal Golomb-Rice parameters for leaves. See golombMemoTuner.cpp.
 // Note that uneven leaf sizes are less efficient in ShockHash2.
     static constexpr uint8_t bij_memo2[
-            MAX_LEAF_SIZE2 + 1] = {0, 0, 0, 1, 3, 7, 6, 9, 9, 12, 11, 14, 14, 17, 17, 20, 20, 23, 22, 25, 25, 28, 28,
-                                   31, 31, 34, 34, 37, 37, 39, 39, 42, 42, 45, 45, 48, 48, 51, 51, 54, 54, 56, 56, 59,
-                                   59, 62, 62, 65, 65, 68, 68, 71, 71, 74, 74, 76, 76, 79, 79, 82, 82, 85, 85, 88,};
+            MAX_LEAF_SIZE2 + 1] = {0, 0, 0, 2, 3, 7, 6, 9, 9, 11, 11, 14, 14, 17, 17, 20, 20, 23, 23, 25, 26, 28, 28,
+                                   31, 31, 34, 34, 37, 37, 39, 39, 42, 42, 45, 45, 48, 48, 51, 51, 54, 53, 56, 56, 59,
+                                   59, 62, 62, 65, 64, 67, 67, 71, 70, 73, 74, 76, 76, 79, 79, 83, 82, 84, 85, 86, 88,
+                                   91, 90, 93, 93, 97, 96, 98, 99, 101, 102, 105, 104, 108, 108, 109, 110, 114, 113,
+                                   116, 117, 119, 119, 122, 121, 125, 124, 128, 128, 131, 130, 134, 134, 137, 137, 139,
+                                   140, 143,};
 
 
     template<size_t LEAF_SIZE>
@@ -106,11 +109,6 @@ namespace shockhash {
         }
         for (; s < MAX_BUCKET_SIZE; ++s) _fill_golomb_rice2<LEAF_SIZE, useBurr, RETRIEVAL_DIFF>(s, &memo);
         return memo;
-    }
-
-    template<typename t>
-    int parity(t val) {
-        return __builtin_parityll(val); //generalize 128 bit
     }
 
     template<size_t LEAF_SIZE, bool useBurr, size_t RETRIEVAL_DIFF>
@@ -226,14 +224,15 @@ namespace shockhash {
             } else {
                 size_t width = m > RETRIEVAL_DIFF ? (m - RETRIEVAL_DIFF) : 0;
                 const auto seed = reader.readNext(golomb_param(m) - width);
-                uint64_t remixed = sh2remix(hash.second ^ seed);
                 uint64_t result;
                 if (width == 0) {
-                    result = remixed % m;
+                    result = sh2remix64(hash.second ^ seed) % m;
                 } else {
-                    const auto sol = reader.readFixed(width);
-                    uint64_t row_mask = (uint64_t(1) << (width)) - 1; // ToDo: TYPE
-                    //std::cout << "READ " << seed << " " << (sol & row_mask) << std::endl;
+                    __uint128_t remixed = sh2remix128(hash.second ^ seed);
+                    __uint128_t sol = reader.readFixed128(width);
+                    __uint128_t row_mask = (__uint128_t(1) << (width)) - 1;
+                    /*std::cout << "READ " << seed << " " << uint64_t(sol & row_mask) << " "
+                              << uint64_t((sol & row_mask) >> 64) << std::endl;*/
                     uint64_t retrieved = parity(sol & row_mask & remixed);
                     result = queryHash(seed, hash.second, retrieved, m);
                     //std::cout << hash.second << " "<< queryHash(seed, hash.second, 0, m)<<" "<<queryHash(seed, hash.second, 1, m) <<" "<<result<< std::endl;
@@ -257,7 +256,7 @@ namespace shockhash {
         /** Returns an estimate of the size in bits of this structure. */
         size_t getBits() {
             return ef.bitCountCumKeys() + ef.bitCountPosition()
-                   + descriptors.getBits() + 8 * ribbon.sizeBytes() + 8 * sizeof(ShockHash2);
+                   + descriptors.getBits() /*+ 8 * sizeof(ShockHash2)*/;
         }
 
         void printBits() {
@@ -287,15 +286,16 @@ namespace shockhash {
                 std::vector<uint64_t> leafKeys(bucket.begin() + start, bucket.begin() + end);
                 //std::cout << "BUILD " << start << " " << end << std::endl;
                 size_t width = m > RETRIEVAL_DIFF ? (m - RETRIEVAL_DIFF) : 0;
-                __uint128_t shseed = shockhash2construct(m, width, leafKeys, ribbonInput, useBurr);
+                std::pair<uint64_t, __uint128_t> shseed = shockhash2construct(m, width, leafKeys, ribbonInput, useBurr);
 
-                const auto log2golomb = golomb_param(m);
-                builder.appendFixed(shseed >> width, log2golomb - width);
-                unary.push_back(shseed >> log2golomb);
+                const auto log2golomb = golomb_param(m) - width;
+                builder.appendFixed(shseed.first, log2golomb);
+                unary.push_back(shseed.first >> log2golomb);
                 if (width > 0) {
                     __uint128_t row_mask = (__uint128_t(1) << (width)) - 1;
-                    //std::cout << "WRITE " << uint64_t (shseed>> (width))<<" "<<uint64_t (shseed & row_mask)<<" "<<uint64_t (shseed >> log2golomb)<<" "<<log2golomb << std::endl;
-                    builder.appendFixed(shseed& row_mask, width);
+                    /*std::cout << "WRITE " << shseed.first << " " << uint64_t(shseed.second & row_mask) << " "
+                              << uint64_t((shseed.second & row_mask) >> 64) << std::endl;*/
+                    builder.appendFixed128(shseed.second & row_mask, width);
                 }
                 // End: difference to RecSplit.
 

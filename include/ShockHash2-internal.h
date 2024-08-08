@@ -76,7 +76,7 @@ namespace shockhash {
             std::array<uint64_t, leafSize> keys = {0};
 
             explicit Finder(const std::vector<uint64_t> &inKeys) {
-                for (int i = 0; i < leafSize; ++i) {
+                for (size_t i = 0; i < leafSize; ++i) {
                     keys[i] = inKeys[i];
                 }
             }
@@ -595,16 +595,37 @@ namespace shockhash {
         }
     }
 
-    static uint64_t inline sh2remix(uint64_t z) {
+    static int parity(uint64_t val) {
+        return __builtin_parityll(val);
+    }
+
+    static int parity(__uint128_t val) {
+        return parity(uint64_t(val >> 64) ^ uint64_t(val));
+    }
+
+    static uint64_t inline sh2remix64(uint64_t z) {
         z = (z ^ (z >> 30)) * 0xbf58476d1ce4e5b9;
         z = (z ^ (z >> 27)) * 0x94d049bb133111eb;
         return z ^ (z >> 31);
     }
 
+    static __uint128_t inline sh2remix128(uint64_t z) {
+        return (__uint128_t(sh2remix64(~z)) << 64) | sh2remix64(z);
+    }
 
-    static constexpr int MAX_LEAF_SIZE2 = 63;
-    static constexpr int MAX_RETRIEVAL_WIDTH = MAX_LEAF_SIZE2;
-    static constexpr int MAX_DIFF = 4;
+    template<bool bitMode128>
+    static std::conditional<bitMode128, __uint128_t, uint64_t>::type inline sh2remix(uint64_t z) {
+        if constexpr (bitMode128) {
+            return sh2remix128(z);
+        } else {
+            return sh2remix64(z);
+        }
+    }
+
+
+    static constexpr size_t MAX_LEAF_SIZE2 = 101;
+    static constexpr size_t MAX_RETRIEVAL_WIDTH = MAX_LEAF_SIZE2;
+    static constexpr size_t MAX_DIFF = 4;
 
 /**
  * ShockHash2 base case.
@@ -616,9 +637,9 @@ namespace shockhash {
     private:
         using CandidateFinder = SeedCandidateFinder<leafSize, isolatedVertexFilter>;
 
-        using matrixRow = std::conditional<matrix_width >= size_t(63), __uint128_t, uint64_t>::type;
+        static constexpr bool bitMode128 = matrix_width >= size_t(64);
+        using matrixRow = std::conditional<bitMode128, __uint128_t, uint64_t>::type;
         static constexpr matrixRow row_mask = (matrixRow(1) << matrix_width) - 1;
-        typedef matrixRow matrixSol;
 
 
         template<typename t>
@@ -631,18 +652,10 @@ namespace shockhash {
             return (number & ~(t(1) << n)) | (t(x) << n);
         }
 
-        static int parity(uint64_t val) {
-            return __builtin_parityll(val);
-        }
-
-        static int parity(__uint128_t val) {
-            return parity(uint64_t(val>>64) ^ uint64_t(val));
-        }
-
 
     public:
 
-        static inline __uint128_t findSeed(const std::vector<uint64_t> &inKeys) {
+        static inline std::pair<uint64_t, __uint128_t> findSeed(const std::vector<uint64_t> &inKeys) {
             assert(inKeys.size() == leafSize);
             if constexpr (not useBurr and matrix_width == 0) {
                 size_t seed = 0;
@@ -651,7 +664,7 @@ namespace shockhash {
                     taken.reset();
                     bool works = true;
                     for (uint64_t k: inKeys) {
-                        uint64_t pos = sh2remix(k ^ seed) % leafSize;
+                        uint64_t pos = sh2remix64(k ^ seed) % leafSize;
                         if (taken[pos]) {
                             works = false;
                             seed++;
@@ -661,7 +674,7 @@ namespace shockhash {
                         }
                     }
                     if (works) {
-                        return seed;
+                        return {seed, 0};
                     }
                 }
             }
@@ -710,7 +723,7 @@ namespace shockhash {
                     }
 
                     if constexpr (useBurr) {
-                        return fullSeed;
+                        return {fullSeed, 0};
                     } else {
                         std::array<matrixRow, leafSize> matrix{};
                         std::bitset<leafSize> sol{};
@@ -719,7 +732,7 @@ namespace shockhash {
                         // insert keys
                         for (size_t i = 0; i < leafSize; i++) {
                             //matrixRow hash = keys[i] & row_mask;
-                            matrixRow hash = sh2remix(keys[i] ^ fullSeed) & row_mask;
+                            matrixRow hash = sh2remix<bitMode128>(keys[i] ^ fullSeed) & row_mask;
                             auto addCand = [&](size_t end, bool orientation) {
                                 matrix[end] ^= hash;
                                 if (!orientation)
@@ -758,7 +771,7 @@ namespace shockhash {
                         }
 
                         // check solvable
-                        matrixSol res = 0;
+                        matrixRow res = 0;
                         bool fail = false;
                         for (size_t rowindex = 0; rowindex < leafSize and not fail; ++rowindex) {
                             matrixRow row = matrix[rowindex];
@@ -780,8 +793,22 @@ namespace shockhash {
                         if (fail) {
                             continue;
                         }
+
+
+                        /*std::bitset<leafSize> occ;
                         for (size_t i = 0; i < leafSize; ++i) {
-                            /*std::cout << keys[i] << " " << queryHash(fullSeed, keys[i], 0, leafSize) << " "
+                            size_t pos = queryHash(fullSeed, keys[i],
+                                                   parity(res & row_mask & sh2remix<bitMode128>(keys[i] ^ fullSeed)),
+                                                   leafSize);
+                            if (occ[pos]) {
+                                std::cout << " FAIL " << std::endl;
+                                exit(123);
+                            }
+                        }*/
+                        //std::cout << " VALID " << std::endl;
+/*
+                        for (size_t i = 0; i < leafSize; ++i) {
+                            std::cout << keys[i] << " " << queryHash(fullSeed, keys[i], 0, leafSize) << " "
                                       << queryHash(fullSeed, keys[i], 1, leafSize) << " "
                                       << queryHash(fullSeed, keys[i],
                                                    parity(res & row_mask & sh2remix(keys[i] ^ fullSeed)), leafSize)
@@ -790,21 +817,21 @@ namespace shockhash {
                             //std::cout<<(CandidateFinder::Finder::hash(keys[i], seed1))<<" "<<CandidateFinder::hash(keys[i], seed2)<<std::endl;
                             /*std::cout << keys[i] << " " << " " << fullSeed << " " << uint64_t(res & row_mask) << " "
                                       << leafSize
-                                      << std::endl;*/
-                        }
+                                      << std::endl;
+                        }*/
                         //std::cout << fullSeed << " " << uint64_t(res & row_mask) << std::endl;
 
                         //return fullSeed;
-                        return (__uint128_t(fullSeed) << matrix_width) | res;
+                        return {fullSeed, res};
                     }
                 }
                 seedsCandidates.push_back(newCandidate);
             }
-            return 0;
+            return {0, 0};
         }
 
 
-        inline double calculateBijection(const std::vector<uint64_t> &keys) {
+        /*inline double calculateBijection(const std::vector<uint64_t> &keys) {
             assert(matrix_width == 0);
             size_t seed = findSeed(keys);
             // Begin: Validity check
@@ -815,7 +842,7 @@ namespace shockhash {
 #endif
             // End: Validity check
             return seed;
-        }
+        }*/
 
         static std::string name() {
             return std::string("ShockHash2")

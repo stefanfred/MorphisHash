@@ -14,6 +14,13 @@ static constexpr uint64_t rotate(size_t l, uint64_t val, uint32_t x) {
     return ((val << x) | (val >> (l - x))) & ((1ul << l) - 1);
 }
 
+double lower(size_t l) {
+    double res=1;
+    for (size_t i = 1; i <= l; ++i) {
+        res=res*double(l)/i;
+    }
+    return log2(res);
+}
 
 double geometricEntropy(double p) {
     if (p <= 0.0 || p > 1.0) {
@@ -69,7 +76,7 @@ void testRotationFitting(size_t l) {
 }
 
 void testBruteForce(size_t l) {
-    size_t numIterations = std::max(2ul, (size_t) 4e7 / (1<<l));
+    size_t numIterations = std::max(2ul, (size_t) 1e7 / (1<<l));
     size_t totalTries = 1;
     size_t hfEvals = 0;
     for (size_t iteration = 0; iteration < numIterations; iteration++) {
@@ -96,14 +103,19 @@ void testBruteForce(size_t l) {
     }
     double p = double(numIterations)/double(totalTries);
     double space = (geometricEntropy(p)) / double(l);
+    double space2 = (-log2(p)) / double(l);
     std::cout<<"RESULT"
              <<" method=bruteforce"
              <<" l="<<l
              <<" hfEvals="<<(double)hfEvals/(double)numIterations
              <<" tries="<<(double)totalTries / (double)numIterations
              <<" iterations="<<numIterations
-             <<" spaceEstimate="<<space
+             <<" spaceEstimate1="<<space
+             <<" spaceEstimate2="<<space2
+             <<" spaceEstimate1o="<<(space*l- lower(l))
+             <<" spaceEstimate2o="<<(space2*l- lower(l))
              <<std::endl;
+
 
 }
 
@@ -255,18 +267,22 @@ void testBipShockHash(size_t l, size_t w, bool burr) {
         // WARNING: To use this, switch to BasicSeedCandidateFinder in ShockHash2-precompiled.h!
         std::pair<uint64_t, __uint128_t> seed = shockhash::shockhash2construct(l, l-w, keys, ribbonInput, burr);
         auto [largerPart, smallerPart] = shockhash::unpairTriangular(seed.first);
-        totalSeed += seed.first + 1;
+        totalSeed += seed.first;
         totalLargerPart += largerPart;
     }
     double p = numIterations/totalSeed;
     double space = (geometricEntropy(p) + double(l) - double(w)) / double(l);
+    double space2 = (-log2(p) + double(l) - double(w)) / double(l);
     std::cout<<"RESULT"
              <<(burr?" method=shockhash2burr":" method=shockhash2fixed")
              <<" l="<<l
              <<" w="<<w
              <<" tries="<<(double)totalLargerPart / (double)numIterations
              <<" iterations="<<numIterations
-             <<" spaceEstimate="<<space
+             <<" spaceEstimate1="<<space
+             <<" spaceEstimate2="<<space2
+             <<" spaceEstimate1o="<<(space*l- lower(l))
+             <<" spaceEstimate2o="<<(space2*l- lower(l))
              <<std::endl;
 }
 

@@ -76,7 +76,7 @@ void testRotationFitting(size_t l) {
 }
 
 void testBruteForce(size_t l) {
-    size_t numIterations = std::max(2ul, (size_t) 1e7 / (1<<l));
+    size_t numIterations = std::max(2ul, (size_t) 1e8 / (1<<l));
     size_t totalTries = 1;
     size_t hfEvals = 0;
     for (size_t iteration = 0; iteration < numIterations; iteration++) {
@@ -255,7 +255,7 @@ void testShockHashRot(size_t l) {
 
 void testBipShockHash(size_t l, size_t w, bool burr) {
     assert(l < 120);
-    size_t numIterations = l <= 40 ? 50000 : 5000;
+    size_t numIterations = l <= 40 ? 500000 : 50000;
     double totalLargerPart = 0;
     double totalSeed = 0;
     for (size_t iteration = 0; iteration < numIterations; iteration++) {

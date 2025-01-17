@@ -237,6 +237,10 @@ namespace shockhash {
                 curr_fixed_offset += fixed_len;
             }
 
+            void toFixedPos(size_t w, size_t index) {
+                curr_fixed_offset=w*index;
+            }
+
             void readReset(const size_t bit_pos, const size_t unary_offset) {
                 // assert(bit_pos < bit_count);
                 curr_fixed_offset = bit_pos;

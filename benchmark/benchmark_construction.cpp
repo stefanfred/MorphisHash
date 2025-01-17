@@ -107,7 +107,7 @@ void construct() {
     } else if (shockhash2) {
         method += (useBurr ? "2Burr" : "2Fixed");
     } else if (shockhash2flat) {
-        method += "2flat";
+        method += (useBurr ? "2flatBurr" : "2flatFixed");
     }
     std::cout << "RESULT"
               << " method=" << method
@@ -165,7 +165,10 @@ int main(int argc, const char *const *argv) {
     }
 
     if (shockhash2) {
-        dispatchLeafSize<shockhash::ShockHash2, shockhash::MAX_LEAF_SIZE2>();
+        //dispatchLeafSize<shockhash::ShockHash2, shockhash::MAX_LEAF_SIZE2>();
+    } else if (shockhash2flat) {
+        //dispatchLeafSize<shockhash::ShockHash2Flat, shockhash::MAX_LEAF_SIZE2>();
     }
+    construct<shockhash::ShockHash2Flat<30, false, 6>>();
     return 0;
 }

@@ -1,4 +1,5 @@
 #pragma once
+
 #include <vector>
 #include <SimpleRibbon.h>
 #include <EliasFano.h>
@@ -11,30 +12,30 @@
 
 namespace shockhash {
 
-template <size_t THRESHOLD_RANGE>
-constexpr std::array<uint32_t, THRESHOLD_RANGE> _fill_mapping() {
-    const uint64_t ONE_THIRD = std::numeric_limits<uint32_t>::max() / 3;
-    std::array<uint32_t, THRESHOLD_RANGE> array;
-    if (THRESHOLD_RANGE == 1) {
-        return array;
-    } else if (THRESHOLD_RANGE == 2) {
-        array.at(0) = 0;
-        array.at(1) = std::numeric_limits<uint32_t>::max();
+    template<size_t THRESHOLD_RANGE>
+    constexpr std::array<uint32_t, THRESHOLD_RANGE> _fill_mapping() {
+        const uint64_t ONE_THIRD = std::numeric_limits<uint32_t>::max() / 3;
+        std::array<uint32_t, THRESHOLD_RANGE> array;
+        if (THRESHOLD_RANGE == 1) {
+            return array;
+        } else if (THRESHOLD_RANGE == 2) {
+            array.at(0) = 0;
+            array.at(1) = std::numeric_limits<uint32_t>::max();
+            return array;
+        }
+        array.at(0) = 0; // Last resort
+        array.at(1) = ONE_THIRD; // Safeguard, so much bumping should never happen in practice
+        size_t interpolationRange = THRESHOLD_RANGE - 3;
+        for (size_t i = 0; i < interpolationRange; i++) {
+            array.at(2 + i) = 2 * ONE_THIRD + ONE_THIRD * i / interpolationRange;
+        }
+        array.at(THRESHOLD_RANGE - 1) = std::numeric_limits<uint32_t>::max(); // Keep all
         return array;
     }
-    array.at(0) = 0; // Last resort
-    array.at(1) = ONE_THIRD; // Safeguard, so much bumping should never happen in practice
-    size_t interpolationRange = THRESHOLD_RANGE - 3;
-    for (size_t i = 0; i < interpolationRange; i++) {
-        array.at(2 + i) = 2 * ONE_THIRD + ONE_THIRD * i / interpolationRange;
-    }
-    array.at(THRESHOLD_RANGE - 1) = std::numeric_limits<uint32_t>::max(); // Keep all
-    return array;
-}
 
-template <size_t k, size_t w>
-class ShockHash2Flat {
-        using BaseCase = BijectionsShockHash2<k, shockhash::QuadSplitCandidateFinderList, true>;
+    template<size_t k, bool useBurr, size_t RETRIEVAL_DIFF>
+    class ShockHash2Flat {
+        using BaseCase = BijectionsShockHash2<k, shockhash::QuadSplitCandidateFinderList, true, useBurr, k-RETRIEVAL_DIFF>;
         static constexpr double OVERLOAD_FACTOR = 0.9;
         static constexpr size_t THRESHOLD_BITS = tlx::integer_log2_floor(k) - 1;
         static constexpr size_t THRESHOLD_RANGE = 1ul << THRESHOLD_BITS;
@@ -46,17 +47,19 @@ class ShockHash2Flat {
         std::map<size_t, size_t> seedsFallback;
         std::vector<size_t> layerBases;
 
-        ShockHash2<k, true, 0> fallbackPhf;
+        RiceBitVector <> solutions;
+
+        ShockHash2<k, useBurr, RETRIEVAL_DIFF> fallbackPhf;
         size_t N;
         size_t nbuckets;
         pasta::BitVector freePositionsBv;
-        pasta::FlatRankSelect<pasta::OptimizedFor::ONE_QUERIES> *freePositionsRankSelect = nullptr;
+        pasta::FlatRankSelect <pasta::OptimizedFor::ONE_QUERIES> *freePositionsRankSelect = nullptr;
         using Ribbon = SimpleRibbon<1, (k > 24) ? 128 : 64>;
         Ribbon ribbon;
         size_t layers = 2;
     public:
         explicit ShockHash2Flat(const std::vector<std::string> &keys, size_t ignore, size_t ignore2)
-            : ShockHash2Flat(keys) {
+                : ShockHash2Flat(keys) {
             (void) ignore;
             (void) ignore2;
         }
@@ -69,7 +72,7 @@ class ShockHash2Flat {
             std::vector<size_t> freePositions;
             std::vector<KeyInfo> hashes;
             hashes.reserve(keys.size());
-            for (const std::string &key : keys) {
+            for (const std::string &key: keys) {
                 uint64_t mhc = ::util::MurmurHash64(key);
                 uint32_t bucket = ::util::fastrange32(mhc & 0xffffffff, bucketsThisLayer);
                 uint32_t threshold = mhc >> 32;
@@ -88,7 +91,7 @@ class ShockHash2Flat {
                         break;
                     }
                     // Rehash
-                    for (auto & hash : hashes) {
+                    for (auto &hash: hashes) {
                         hash.mhc = ::util::remix(hash.mhc);
                         hash.bucket = ::util::fastrange32(hash.mhc & 0xffffffff, bucketsThisLayer);
                         hash.threshold = hash.mhc >> 32;
@@ -109,7 +112,8 @@ class ShockHash2Flat {
                 }
                 // Last bucket
                 while (previousBucket < bucketsThisLayer) {
-                    flushBucket(layerBase, bucketStart, hashes.size(), previousBucket, hashes, bumpedKeys, freePositions);
+                    flushBucket(layerBase, bucketStart, hashes.size(), previousBucket, hashes, bumpedKeys,
+                                freePositions);
                     previousBucket++;
                     bucketStart = hashes.size();
                 }
@@ -117,16 +121,16 @@ class ShockHash2Flat {
             }
 
             std::vector<std::string> fallbackPhfContent;
-            for (auto &hash : hashes) {
+            for (auto &hash: hashes) {
                 fallbackPhfContent.push_back(std::to_string(hash.mhc));
             }
-            fallbackPhf = ShockHash2<k, true, 0>(fallbackPhfContent, 2000, 1);
+            fallbackPhf = ShockHash2<k, useBurr, RETRIEVAL_DIFF>(fallbackPhfContent, 2000, 1);
             size_t additionalFreePositions = hashes.size() - freePositions.size();
             size_t nbucketsHandled = layerBases.back();
             {
                 size_t i = 0;
                 for (; i < additionalFreePositions - keysInEndBucket; i++) {
-                    freePositions.push_back(nbucketsHandled + i/k);
+                    freePositions.push_back(nbucketsHandled + i / k);
                 }
                 for (; i < additionalFreePositions; i++) {
                     freePositions.push_back(nbuckets + i);
@@ -141,7 +145,7 @@ class ShockHash2Flat {
             // Construct ShockHash within buckets
             std::vector<std::vector<uint64_t>> bucketContents(nbuckets);
             std::vector<uint64_t> lastBucket;
-            for (KeyInfo key : allHashes) {
+            for (KeyInfo key: allHashes) {
                 size_t bucket = evaluateKPerfect(key.mhc).first;
                 if (bucket >= nbuckets) {
                     lastBucket.push_back(key.mhc);
@@ -150,17 +154,24 @@ class ShockHash2Flat {
                 }
             }
             std::vector<std::pair<uint64_t, uint8_t>> ribbonInput;
+            RiceBitVector<>::Builder solBuilder;
             for (size_t i = 0; i < nbuckets; i++) {
-                size_t seed = BaseCase::findSeed(bucketContents.at(i));
-                BaseCase::constructRetrieval(bucketContents.at(i), seed, ribbonInput);
-                if (seed >= MAX_SEED || seed == SEED_FALLBACK_INDICATOR) {
-                    seedsFallback.insert(std::make_pair(i, seed));
-                    seed = SEED_FALLBACK_INDICATOR;
+                std::pair<uint64_t, __uint128_t> seed = BaseCase::findSeed(bucketContents.at(i));
+                if (useBurr)
+                    constructRetrieval(bucketContents.at(i), seed.first, ribbonInput, k);
+                else
+                    solBuilder.appendFixed128(seed.second, k - RETRIEVAL_DIFF);
+                if (seed.first >= MAX_SEED || seed.first == SEED_FALLBACK_INDICATOR) {
+                    seedsFallback.insert(std::make_pair(i, seed.first));
+                    seed.first = SEED_FALLBACK_INDICATOR;
                 }
-                setSeed(i, seed);
+                setSeed(i, seed.first);
             }
             // Construct last bucket
-            ribbon = Ribbon(ribbonInput);
+            if (useBurr)
+                ribbon = Ribbon(ribbonInput);
+            else
+                solutions = solBuilder.build();
         }
 
         inline void setThreshold(size_t bucket, size_t value) {
@@ -223,24 +234,25 @@ class ShockHash2Flat {
         /** Estimate for the space usage of this structure, in bits */
         [[nodiscard]] size_t getBits() {
             return 8 * sizeof(*this)
-                    + fallbackPhf.getBits()
-                    + (freePositionsBv.size() + 8 * freePositionsRankSelect->space_usage())
-                    + 8 * ribbon.sizeBytes()
-                    + thresholdsAndSeeds.bit_size()
-                    + 64 * seedsFallback.size();
+                   + fallbackPhf.getBits()
+                   + (freePositionsBv.size() + 8 * freePositionsRankSelect->space_usage())
+                   + (useBurr ? 8 * ribbon.sizeBytes() : solutions.getBits())
+                   + thresholdsAndSeeds.bit_size()
+                   + 64 * seedsFallback.size();
         }
 
         void printBits() {
-            std::cout << "Thresholds: " << 1.0f*THRESHOLD_BITS/k << std::endl;
-            std::cout << "Fallback PHF keys: " << freePositionsBv.size() - N/k << std::endl;
-            std::cout << "PHF: " << 1.0f*fallbackPhf.getBits() / N << std::endl;
-            std::cout << "Fano: " << 1.0f*(freePositionsBv.size() + 8 * freePositionsRankSelect->space_usage()) / N << std::endl;
-            std::cout << "Base case seeds: " << 1.0f*SEED_BITS/k << std::endl;
-            std::cout << "Base case seeds overflow: " << 1.0f*seedsFallback.size()*64/N << std::endl;
-            std::cout << "Ribbon: " << 8.0f*ribbon.sizeBytes() / N << std::endl;
+            std::cout << "Thresholds: " << 1.0f * THRESHOLD_BITS / k << std::endl;
+            std::cout << "Fallback PHF keys: " << freePositionsBv.size() - N / k << std::endl;
+            std::cout << "PHF: " << 1.0f * fallbackPhf.getBits() / N << std::endl;
+            std::cout << "Fano: " << 1.0f * (freePositionsBv.size() + 8 * freePositionsRankSelect->space_usage()) / N
+                      << std::endl;
+            std::cout << "Base case seeds: " << 1.0f * SEED_BITS / k << std::endl;
+            std::cout << "Base case seeds overflow: " << 1.0f * seedsFallback.size() * 64 / N << std::endl;
+            std::cout << "Retrieval: " << (useBurr ? 8 * ribbon.sizeBytes() : solutions.getBits()) / N << std::endl;
         }
 
-        size_t operator() (const std::string &key) {
+        size_t operator()(const std::string &key) {
             return operator()(::util::MurmurHash64(key));
         }
 
@@ -256,8 +268,24 @@ class ShockHash2Flat {
             if (seed == SEED_FALLBACK_INDICATOR) {
                 seed = seedsFallback.at(bucket);
             }
-            size_t retrieved = ribbon.retrieve(hash);
-            size_t baseCase = BaseCase::hash(seed, hash, retrieved);
+            size_t baseCase;
+            if (useBurr) {
+                size_t retrieved = ribbon.retrieve(hash);
+                baseCase = queryHash(seed, hash, retrieved, k);
+            } else {
+                size_t width = k > RETRIEVAL_DIFF ? (k - RETRIEVAL_DIFF) : 0;
+                if (width == 0) {
+                    baseCase = sh2remix64(hash ^ seed) % k;
+                } else {
+                    __uint128_t remixed = sh2remix128(hash ^ seed);
+                    RiceBitVector<>::Reader r=solutions.reader();
+                    r.toFixedPos(width, bucket);
+                    __uint128_t sol = r.readFixed128(width);
+                    __uint128_t row_mask = (__uint128_t(1) << (width)) - 1;
+                    uint64_t retrieved = parity(sol & row_mask & remixed);
+                    baseCase = queryHash(seed, hash, retrieved, k);
+                }
+            }
             return bucket * k + baseCase;
         }
 
@@ -284,5 +312,5 @@ class ShockHash2Flat {
             auto [_, storedSeed] = getThresholdAndSeed(bucket);
             return std::make_pair(bucket, storedSeed);
         }
-};
+    };
 } // Namespace shockhash

@@ -29,7 +29,7 @@ namespace shockhash {
         } else if (I - WS == width) {
             return construct<I, WS, false>(ribbonInput, leafKeys);
         } else {
-            return dispatchWidth<I, WS - 1>(width, ribbonInput, leafKeys, useBurr);
+            return dispatchWidth<I, WS + 1>(width, ribbonInput, leafKeys, useBurr);
         }
     }
 

@@ -625,7 +625,7 @@ namespace shockhash {
 
     static constexpr size_t MAX_LEAF_SIZE2 = 106;
     static constexpr size_t MAX_RETRIEVAL_WIDTH = MAX_LEAF_SIZE2;
-    static constexpr size_t MAX_DIFF = 4;
+    static constexpr size_t MAX_DIFF = 6;
 
 /**
  * ShockHash2 base case.

@@ -8,7 +8,7 @@ namespace shockhash {
                      std::vector<uint64_t> &leafKeys) {
         using SH = std::conditional_t<I < SockHash2SeedFinderLeafSizeThreshold,
                 BijectionsShockHash2<I, BasicSeedCandidateFinder::Finder, true, burr, I - WS>,
-                BijectionsShockHash2<I, QuadSplitCandidateFinderList, true, burr, I - WS>>;
+                BijectionsShockHash2<I, BasicSeedCandidateFinder::Finder, true, burr, I - WS>>;
         std::pair<uint64_t, __uint128_t>  x = SH::findSeed(leafKeys);
         /*if(burr) {
             constructRetrieval(leafKeys, x, ribbonInput, I);
@@ -29,7 +29,7 @@ namespace shockhash {
         } else if (I - WS == width) {
             return construct<I, WS, false>(ribbonInput, leafKeys);
         } else {
-            return dispatchWidth<I, WS + 1>(width, ribbonInput, leafKeys, useBurr);
+            return dispatchWidth<I, WS - 1>(width, ribbonInput, leafKeys, useBurr);
         }
     }
 
@@ -41,7 +41,7 @@ namespace shockhash {
             std::cerr << "The leafSize " << leafSize << " was not compiled into this binary." << std::endl;
             exit(1);
         } else if (I == leafSize) {
-            return dispatchWidth<I, 4>(width, ribbonInput, leafKeys, useBurr);
+            return dispatchWidth<I, MAX_DIFF>(width, ribbonInput, leafKeys, useBurr);
         } else {
             return dispatchLeafSize<I - 1>(leafSize, width, ribbonInput, leafKeys, useBurr);
         }

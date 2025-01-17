@@ -14,6 +14,15 @@ static constexpr uint64_t rotate(size_t l, uint64_t val, uint32_t x) {
     return ((val << x) | (val >> (l - x))) & ((1ul << l) - 1);
 }
 
+
+double geometricEntropy(double p) {
+    if (p <= 0.0 || p > 1.0) {
+        throw std::invalid_argument("The probability p must be in the range (0, 1].");
+    }
+    double q = 1.0 - p;
+    return -(q * log2(q) / p) - log2(p);
+}
+
 void testRotationFitting(size_t l) {
     size_t numIterations = std::max(2ul, (size_t) 7e7 / (1<<l));
     size_t totalTries = 0;
@@ -61,7 +70,7 @@ void testRotationFitting(size_t l) {
 
 void testBruteForce(size_t l) {
     size_t numIterations = std::max(2ul, (size_t) 4e7 / (1<<l));
-    size_t totalTries = 0;
+    size_t totalTries = 1;
     size_t hfEvals = 0;
     for (size_t iteration = 0; iteration < numIterations; iteration++) {
         std::vector<shockhash::HashedKey> keys;
@@ -85,14 +94,17 @@ void testBruteForce(size_t l) {
             totalTries++;
         }
     }
+    double p = double(numIterations)/double(totalTries);
+    double space = (geometricEntropy(p)) / double(l);
     std::cout<<"RESULT"
              <<" method=bruteforce"
              <<" l="<<l
              <<" hfEvals="<<(double)hfEvals/(double)numIterations
              <<" tries="<<(double)totalTries / (double)numIterations
              <<" iterations="<<numIterations
-             <<" spaceEstimate="<<log2((double)totalTries / (double)numIterations) / l
+             <<" spaceEstimate="<<space
              <<std::endl;
+
 }
 
 void testShockHash(size_t l) {
@@ -228,9 +240,10 @@ void testShockHashRot(size_t l) {
              <<std::endl;
 }
 
-void testBipShockHash(size_t l) {
+
+void testBipShockHash(size_t l, size_t w, bool burr) {
     assert(l < 120);
-    size_t numIterations = l <= 40 ? 500000 : 50000;
+    size_t numIterations = l <= 40 ? 50000 : 5000;
     double totalLargerPart = 0;
     double totalSeed = 0;
     for (size_t iteration = 0; iteration < numIterations; iteration++) {
@@ -240,34 +253,40 @@ void testBipShockHash(size_t l) {
         }
         std::vector<std::pair<uint64_t, uint8_t>> ribbonInput;
         // WARNING: To use this, switch to BasicSeedCandidateFinder in ShockHash2-precompiled.h!
-        uint64_t seed = shockhash::shockhash2construct(l, keys, ribbonInput);
-        auto [largerPart, smallerPart] = shockhash::unpairTriangular(seed);
-        totalSeed += seed;
+        std::pair<uint64_t, __uint128_t> seed = shockhash::shockhash2construct(l, l-w, keys, ribbonInput, burr);
+        auto [largerPart, smallerPart] = shockhash::unpairTriangular(seed.first);
+        totalSeed += seed.first + 1;
         totalLargerPart += largerPart;
     }
+    double p = numIterations/totalSeed;
+    double space = (geometricEntropy(p) + double(l) - double(w)) / double(l);
     std::cout<<"RESULT"
-             <<" method=shockhash2"
+             <<(burr?" method=shockhash2burr":" method=shockhash2fixed")
              <<" l="<<l
+             <<" w="<<w
              <<" tries="<<(double)totalLargerPart / (double)numIterations
              <<" iterations="<<numIterations
-             <<" spaceEstimate="<<log2((double)totalSeed / (double)numIterations) / l + 1
+             <<" spaceEstimate="<<space
              <<std::endl;
 }
 
 int main() {
-    for (size_t l = 4; l <= 80; l += 2) {
+    for (size_t l = 10; l <= 80; l += 2) {
         if (l <= 25) {
-            testRotationFitting(l);
+            //testRotationFitting(l);
         }
         if (l <= 22) {
             testBruteForce(l);
         }
         if (l <= 50) {
-            testShockHash(l);
+            //testShockHash(l);
         }
         if (l <= 60) {
-            testShockHashRot(l);
+            //testShockHashRot(l);
         }
-        testBipShockHash(l);
+        for (int w = 0; w < 7; ++w) {
+            testBipShockHash(l, w, false);
+        }
+        testBipShockHash(l, 0, true);
     }
 }

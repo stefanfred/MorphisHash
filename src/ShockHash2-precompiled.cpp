@@ -30,6 +30,8 @@ namespace morphishash {
         if constexpr (W > 0 && I - W < MAX_DIFF) {
             return dispatchWidth<I, W - 1>(width, ribbonInput, leafKeys, useBurr);
         }
+        std::cerr<<"not included in compilation"<<std::endl;
+        exit(1);
     }
 
     template<size_t I>

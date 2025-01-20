@@ -2,7 +2,7 @@
 #include <cstdint>
 #include <vector>
 
-namespace shockhash {
+namespace morphishash {
 class CuckooUnionFind {
     private:
         static constexpr uint32_t EMPTY = ~uint32_t(0);

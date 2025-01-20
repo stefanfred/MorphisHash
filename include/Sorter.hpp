@@ -4,7 +4,7 @@
 #include <vector>
 #include "ShockHash2FlatBase.h"
 
-namespace shockhash {
+namespace morphishash {
     /**
      * Moving sorting to its own compile unit brings compile times from minutes to seconds.
      */

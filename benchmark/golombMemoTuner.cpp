@@ -20,9 +20,9 @@ void dispatchLeafSize() {
     std::vector<__uint128_t> seeds;
     size_t iterations;
     if (leafSize < 40) {
-        iterations = 100;
-    } else {
         iterations = 10;
+    } else {
+        iterations = 2;
     }
     seeds.reserve(iterations);
     for (size_t i = 0; i < iterations; i++) {
@@ -52,17 +52,20 @@ void dispatchLeafSize() {
 
 template <template<size_t, size_t> class T, size_t widthDiff>
 void dispatchWidth() {
-    if constexpr (widthDiff <= shockhash::MAX_DIFF) {
+    if constexpr (widthDiff <= morphishash::MAX_DIFF) {
         std::cout << "{" << std::flush;
-        dispatchLeafSize<T, shockhash::MAX_LEAF_SIZE2, widthDiff>();
+        dispatchLeafSize<T, morphishash::MAX_LEAF_SIZE2, widthDiff>();
         std::cout << "}, " << std::flush;
         dispatchWidth<T, widthDiff + 1>();
     }
 }
 
+
 template <size_t leafSize, size_t width>
-using ShockHash2 = shockhash::BijectionsShockHash2<leafSize, shockhash::BasicSeedCandidateFinder::Finder, true, false, width>;
+using ShockHash2 = std::conditional_t<(leafSize >= 10),
+        morphishash::BijectionsShockHash2<leafSize, morphishash::QuadSplitCandidateFinderBuckets, true, false, width>,
+        morphishash::BijectionsShockHash2<leafSize, morphishash::BasicSeedCandidateFinder::Finder, true, false, width>>;
 
 int main() {
-    dispatchWidth<ShockHash2, shockhash::MAX_DIFF>();
+    dispatchWidth<ShockHash2, 0>();
 }

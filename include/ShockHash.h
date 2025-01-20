@@ -23,7 +23,7 @@
 #include "RiceBitVector.h"
 #include <SimpleRibbon.h>
 
-namespace shockhash {
+namespace morphishash {
 using namespace sux;
 using namespace sux::function;
 using namespace std;
@@ -246,7 +246,7 @@ class ShockHash {
             const auto b = reader.readNext(golomb_param(m));
 
             // Begin: difference to RecSplit.
-            shockhash::HashedKey key(hash.second);
+            morphishash::HashedKey key(hash.second);
             size_t hashFunctionIndex = ribbon.retrieve(hash.second);
             if (ROTATION_FITTING && m == LEAF_SIZE) {
                 size_t r = b % LEAF_SIZE;
@@ -264,7 +264,7 @@ class ShockHash {
                 }
                 return cum_keys + cell;
             } else {
-                return cum_keys + shockhash::TinyBinaryCuckooHashTable::hashToCell(key, b + start_seed[level], m, hashFunctionIndex);
+                return cum_keys + morphishash::TinyBinaryCuckooHashTable::hashToCell(key, b + start_seed[level], m, hashFunctionIndex);
             }
             // End: difference to RecSplit.
         }
@@ -318,11 +318,11 @@ class ShockHash {
                     size_t r = 0;
                     size_t keysGroupA = 0;
                     size_t indexB = LEAF_SIZE - 1;
-                    shockhash::HashedKey keys[LEAF_SIZE];
+                    morphishash::HashedKey keys[LEAF_SIZE];
                     TinyBinaryCuckooHashTable::CandidateCells candidateCellsCache[LEAF_SIZE];
                     tinyBinaryCuckooHashTable.clear();
                     for (size_t i = 0; i < LEAF_SIZE; i++) {
-                        auto key = shockhash::HashedKey(bucket[i + start]);
+                        auto key = morphishash::HashedKey(bucket[i + start]);
                         if ((key.mhc & 1) == 0) {
                             keys[keysGroupA] = key;
                             keysGroupA++;
@@ -404,7 +404,7 @@ class ShockHash {
                 } else {
                     tinyBinaryCuckooHashTable.clear();
                     for (size_t i = start; i < end; i++) {
-                        tinyBinaryCuckooHashTable.prepare(shockhash::HashedKey(bucket[i]));
+                        tinyBinaryCuckooHashTable.prepare(morphishash::HashedKey(bucket[i]));
                     }
                     uint64_t allSet = (1ul << m) - 1;
                     uint64_t mask = 0;
@@ -557,9 +557,9 @@ class ShockHash {
         void compute_thread(int tid, int num_threads, mutex &mtx, std::condition_variable &condition,
                             vector<uint64_t> &bucket_size_acc, vector<uint64_t> &bucket_pos_acc,
                             vector<uint64_t> &sorted_keys, int &next_thread_to_append_builder,
-                            typename shockhash::RiceBitVector<AT>::Builder &builder,
+                            typename morphishash::RiceBitVector<AT>::Builder &builder,
                             std::vector<std::pair<uint64_t, uint8_t>> &ribbonInput) {
-            typename shockhash::RiceBitVector<AT>::Builder local_builder;
+            typename morphishash::RiceBitVector<AT>::Builder local_builder;
             TinyBinaryCuckooHashTable tinyBinaryCuckooHashTable(LEAF_SIZE);
             vector<uint32_t> unary;
             vector<uint64_t> temp(MAX_BUCKET_SIZE);

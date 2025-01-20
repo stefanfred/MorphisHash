@@ -36,7 +36,7 @@
 #include <vector>
 #include <iostream>
 
-namespace shockhash {
+namespace morphishash {
 
     using namespace std;
 #define expect(x, y) __builtin_expect(x, y)

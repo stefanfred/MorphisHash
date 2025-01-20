@@ -35,7 +35,7 @@ void testRotationFitting(size_t l) {
     size_t totalTries = 0;
     size_t hfEvals = 0;
     for (size_t iteration = 0; iteration < numIterations; iteration++) {
-        std::vector<shockhash::HashedKey> keys;
+        std::vector<morphishash::HashedKey> keys;
         for (size_t i = 0; i < l; i++) {
             keys.emplace_back(std::to_string(i) + " " + std::to_string(iteration));
         }
@@ -80,7 +80,7 @@ void testBruteForce(size_t l) {
     size_t totalTries = 1;
     size_t hfEvals = 0;
     for (size_t iteration = 0; iteration < numIterations; iteration++) {
-        std::vector<shockhash::HashedKey> keys;
+        std::vector<morphishash::HashedKey> keys;
         for (size_t i = 0; i < l; i++) {
             keys.emplace_back(std::to_string(i) + " " + std::to_string(iteration));
         }
@@ -134,19 +134,19 @@ void testShockHash(size_t l) {
     size_t totalOrientations = 0;
     size_t totalWith1Component = 0;
     for (size_t iteration = 0; iteration < numIterations; iteration++) {
-        shockhash::TinyBinaryCuckooHashTable table(l);
+        morphishash::TinyBinaryCuckooHashTable table(l);
         for (size_t i = 0; i < l; i++) {
-            table.prepare(shockhash::HashedKey(std::to_string(i) + " " + std::to_string(iteration)));
+            table.prepare(morphishash::HashedKey(std::to_string(i) + " " + std::to_string(iteration)));
         }
         while (!table.testPassesFilter(totalTries) || !table.construct(totalTries)) { // totalTries is the (unique) seed here
             totalTries++;
             hfEvals += 2 * l;
         }
         // Find number of pseudotrees
-        shockhash::UnionFind unionFind(l);
+        morphishash::UnionFind unionFind(l);
         for (size_t i = 0; i < l; i++) {
-            shockhash::TinyBinaryCuckooHashTable::CandidateCells candidateCells
-                    = shockhash::TinyBinaryCuckooHashTable::getCandidateCells(table.heap[i].hash, totalTries, l);
+            morphishash::TinyBinaryCuckooHashTable::CandidateCells candidateCells
+                    = morphishash::TinyBinaryCuckooHashTable::getCandidateCells(table.heap[i].hash, totalTries, l);
             bool res = unionFind.unionIsStillPseudoforest(candidateCells.cell1, candidateCells.cell2);
             if (!res) {
                 std::cerr << "Something went wrong" << std::endl;
@@ -188,10 +188,10 @@ void testShockHashRot(size_t l) {
         auto time = std::chrono::system_clock::now();
         long seed = std::chrono::duration_cast<std::chrono::milliseconds>(time.time_since_epoch()).count() * (iteration + 1);
         util::XorShift64 prng(seed);
-        shockhash::TinyBinaryCuckooHashTable table(l);
+        morphishash::TinyBinaryCuckooHashTable table(l);
         for (size_t i = 0; i < l; i++) {
             keys.push_back(prng());
-            table.prepare(shockhash::HashedKey(keys.at(i)));
+            table.prepare(morphishash::HashedKey(keys.at(i)));
         }
         totalTries--;
         hfEvals -= 2 * l;
@@ -201,20 +201,20 @@ void testShockHashRot(size_t l) {
             totalTries++;
             hfEvals += 2 * l;
 
-            shockhash::UnionFind unionFind(l);
+            morphishash::UnionFind unionFind(l);
             uint64_t a = 0;
             for (size_t i = 0; i < l/2; i++) {
-                auto candidateCells = shockhash::TinyBinaryCuckooHashTable::getCandidateCells(shockhash::HashedKey(keys.at(i)), totalTries, l);
+                auto candidateCells = morphishash::TinyBinaryCuckooHashTable::getCandidateCells(morphishash::HashedKey(keys.at(i)), totalTries, l);
                 a |= 1ull << candidateCells.cell1;
                 a |= 1ull << candidateCells.cell2;
                 if (!unionFind.unionIsStillPseudoforest(candidateCells.cell1, candidateCells.cell2)) {
                     goto mainLoop; // First half does not work, so no reason to try second half
                 }
             }
-            std::vector<shockhash::TinyBinaryCuckooHashTable::CandidateCells> candidateCellsB(l);
+            std::vector<morphishash::TinyBinaryCuckooHashTable::CandidateCells> candidateCellsB(l);
             uint64_t b = 0;
             for (size_t i = l/2; i < l; i++) {
-                auto candidateCells = shockhash::TinyBinaryCuckooHashTable::getCandidateCells(shockhash::HashedKey(keys.at(i)), totalTries, l);
+                auto candidateCells = morphishash::TinyBinaryCuckooHashTable::getCandidateCells(morphishash::HashedKey(keys.at(i)), totalTries, l);
                 candidateCellsB.at(i) = candidateCells;
                 b |= 1ull << candidateCells.cell1;
                 b |= 1ull << candidateCells.cell2;
@@ -265,8 +265,8 @@ void testBipShockHash(size_t l, size_t w, bool burr) {
         }
         std::vector<std::pair<uint64_t, uint8_t>> ribbonInput;
         // WARNING: To use this, switch to BasicSeedCandidateFinder in ShockHash2-precompiled.h!
-        std::pair<uint64_t, __uint128_t> seed = shockhash::shockhash2construct(l, l-w, keys, ribbonInput, burr);
-        auto [largerPart, smallerPart] = shockhash::unpairTriangular(seed.first);
+        std::pair<uint64_t, __uint128_t> seed = morphishash::shockhash2construct(l, l - w, keys, ribbonInput, burr);
+        auto [largerPart, smallerPart] = morphishash::unpairTriangular(seed.first);
         totalSeed += seed.first;
         totalLargerPart += largerPart;
     }

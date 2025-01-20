@@ -16,9 +16,9 @@ using ShockHashRotate = shockhash::SIMDShockHash<l, true>;
 #include "ShockHash.h"
 
 template<size_t l>
-using ShockHash = shockhash::ShockHash<l, false>;
+using ShockHash = morphishash::ShockHash<l, false>;
 template<size_t l>
-using ShockHashRotate = shockhash::ShockHash<l, true>;
+using ShockHashRotate = morphishash::ShockHash<l, true>;
 #endif
 
 #include "ShockHash2.h"
@@ -114,6 +114,7 @@ void construct() {
               << " l=" << leafSize
               << " b=" << bucketSize
               << " N=" << numObjects
+              << " w=" << relativeWidth
               << " threads=" << threads
               << " numQueries=" << numQueries
               << " queryTimeMilliseconds=" << queryDurationMs
@@ -126,12 +127,12 @@ template<template<size_t, bool, size_t> class RecSplit, size_t I, size_t WS>
 void dispatchWidth() {
     if (useBurr) {
         construct<RecSplit<I, true, 0>>();
-    } else if constexpr (WS >= I || WS > shockhash::MAX_DIFF || I - WS > shockhash::MAX_RETRIEVAL_WIDTH) {
-        std::cerr << "The relativeWidth " << relativeWidth << " was not compiled into this binary." << std::endl;
     } else if (WS == relativeWidth) {
         construct<RecSplit<I, false, WS>>();
+    } else if constexpr (WS == 0) {
+        std::cerr << "The relativeWidth " << relativeWidth << " was not compiled into this binary." << std::endl;
     } else {
-        dispatchWidth<RecSplit, I, WS + 1>();
+        dispatchWidth<RecSplit, I, WS - 1>();
     }
 }
 
@@ -140,7 +141,7 @@ void dispatchLeafSize() {
     if constexpr (I <= 1) {
         std::cerr << "The leafSize " << leafSize << " was not compiled into this binary." << std::endl;
     } else if (I == leafSize) {
-        dispatchWidth<RecSplit, I, 4>();
+        dispatchWidth<RecSplit, I, std::min(morphishash::MAX_DIFF, I)>();
     } else {
         dispatchLeafSize<RecSplit, I - 1>();
     }
@@ -165,10 +166,10 @@ int main(int argc, const char *const *argv) {
     }
 
     if (shockhash2) {
-        //dispatchLeafSize<shockhash::ShockHash2, shockhash::MAX_LEAF_SIZE2>();
+        dispatchLeafSize<morphishash::ShockHash2, morphishash::MAX_LEAF_SIZE2>();
     } else if (shockhash2flat) {
-        //dispatchLeafSize<shockhash::ShockHash2Flat, shockhash::MAX_LEAF_SIZE2>();
+        dispatchLeafSize<morphishash::ShockHash2Flat, morphishash::MAX_LEAF_SIZE2>();
     }
-    construct<shockhash::ShockHash2Flat<30, false, 6>>();
+    //construct<shockhash::ShockHash2Flat<70, false, 4>>();
     return 0;
 }

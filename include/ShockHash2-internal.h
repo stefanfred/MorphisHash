@@ -14,7 +14,7 @@
 #include "PairingFunction.h"
 #include "CuckooUnionFind.h"
 
-namespace shockhash {
+namespace morphishash {
     namespace stdx = std::experimental;
 
     template<typename T>
@@ -572,13 +572,13 @@ namespace shockhash {
                                           std::vector<std::pair<uint64_t, uint8_t>> &retrieval, size_t leafSize) {
 
         auto [seed1, seed2] = unpairTriangular(seed >> 12);
-        shockhash::TinyBinaryCuckooHashTable table(leafSize);
+        morphishash::TinyBinaryCuckooHashTable table(leafSize);
         for (uint64_t key: keys) {
-            table.prepare(shockhash::HashedKey(key));
+            table.prepare(morphishash::HashedKey(key));
         }
         table.clearPlacement();
         for (size_t k = 0; k < leafSize; k++) {
-            shockhash::TinyBinaryCuckooHashTable::CandidateCells candidateCells;
+            morphishash::TinyBinaryCuckooHashTable::CandidateCells candidateCells;
             candidateCells.cell1 = queryCandidate(seed1, table.heap[k].hash.mhc, leafSize) + leafSize / 2;
             candidateCells.cell2 = queryCandidate(seed2, table.heap[k].hash.mhc, leafSize);
             if (!table.insert(&table.heap[k], candidateCells)) {
@@ -625,7 +625,7 @@ namespace shockhash {
 
     static constexpr size_t MAX_LEAF_SIZE2 = 106;
     static constexpr size_t MAX_RETRIEVAL_WIDTH = MAX_LEAF_SIZE2;
-    static constexpr size_t MAX_DIFF = 6;
+    static constexpr size_t MAX_DIFF = 7;
 
 /**
  * ShockHash2 base case.

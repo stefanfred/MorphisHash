@@ -20,11 +20,11 @@ class BijectionsShockHash1Rotate {
             size_t r = 0;
             size_t keysGroupA = 0;
             size_t indexB = leafSize - 1;
-            shockhash::HashedKey keys[leafSize];
-            shockhash::TinyBinaryCuckooHashTable::CandidateCells candidateCellsCache[leafSize];
-            shockhash::TinyBinaryCuckooHashTable tinyBinaryCuckooHashTable(leafSize);
+            morphishash::HashedKey keys[leafSize];
+            morphishash::TinyBinaryCuckooHashTable::CandidateCells candidateCellsCache[leafSize];
+            morphishash::TinyBinaryCuckooHashTable tinyBinaryCuckooHashTable(leafSize);
             for (size_t i = 0; i < leafSize; i++) {
-                auto key = shockhash::HashedKey(keysInput[i]);
+                auto key = morphishash::HashedKey(keysInput[i]);
                 if ((key.mhc & 1) == 0) {
                     keys[keysGroupA] = key;
                     keysGroupA++;
@@ -41,14 +41,14 @@ class BijectionsShockHash1Rotate {
             for (;;x++) {
                 a = 0;
                 for (size_t i = 0; i < keysGroupA; i++) {
-                    auto candidateCells = shockhash::TinyBinaryCuckooHashTable::getCandidateCells<leafSize>(keys[i], x);
+                    auto candidateCells = morphishash::TinyBinaryCuckooHashTable::getCandidateCells<leafSize>(keys[i], x);
                     candidateCellsCache[i] = candidateCells;
                     uint64_t candidatePowers = (1ull << candidateCells.cell1) | (1ull << candidateCells.cell2);
                     a |= candidatePowers;
                 }
                 b = 0;
                 for (size_t i = keysGroupA; i < leafSize; i++) {
-                    auto candidateCells = shockhash::TinyBinaryCuckooHashTable::getCandidateCells<leafSize>(keys[i], x);
+                    auto candidateCells = morphishash::TinyBinaryCuckooHashTable::getCandidateCells<leafSize>(keys[i], x);
                     candidateCellsCache[i] = candidateCells;
                     uint64_t candidatePowers = (1ull << candidateCells.cell1) | (1ull << candidateCells.cell2);
                     b |= candidatePowers;

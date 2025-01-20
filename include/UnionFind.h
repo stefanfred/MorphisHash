@@ -5,7 +5,7 @@
 #include <cstddef>
 #include <cstdint>
 
-namespace shockhash {
+namespace morphishash {
 class UnionFind {
         std::vector<size_t> parents;
         std::vector<uint8_t> isTree_; // Avoid bit fiddling inside vector<bool>

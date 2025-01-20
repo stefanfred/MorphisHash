@@ -1,7 +1,7 @@
 #pragma once
 #include <cstdint>
 
-namespace shockhash {
+namespace morphishash {
 struct KeyInfo {
     uint64_t mhc;
     uint32_t bucket;

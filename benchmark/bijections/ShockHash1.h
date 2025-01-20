@@ -11,9 +11,9 @@ class BijectionsShockHash1 {
         static_assert(leafSize <= 64);
     public:
         inline size_t calculateBijection(std::vector<uint64_t> &keys) {
-            shockhash::TinyBinaryCuckooHashTable tinyBinaryCuckooHashTable(leafSize);
+            morphishash::TinyBinaryCuckooHashTable tinyBinaryCuckooHashTable(leafSize);
             for (size_t i = 0; i < leafSize; i++) {
-                tinyBinaryCuckooHashTable.prepare(shockhash::HashedKey(keys[i]));
+                tinyBinaryCuckooHashTable.prepare(morphishash::HashedKey(keys[i]));
             }
             constexpr uint64_t allSet = (leafSize == 64) ? (~0ul) : (1ul << leafSize) - 1;
             uint64_t mask = 0;
@@ -22,7 +22,7 @@ class BijectionsShockHash1 {
                 for (;;) {
                     mask = 0;
                     for (size_t i = 0; i < leafSize; i++) {
-                        auto hash = shockhash::TinyBinaryCuckooHashTable::getCandidateCells(shockhash::HashedKey(keys[i]), x, leafSize);
+                        auto hash = morphishash::TinyBinaryCuckooHashTable::getCandidateCells(morphishash::HashedKey(keys[i]), x, leafSize);
                         mask |= (1ul << hash.cell1);
                         mask |= (1ul << hash.cell2);
                     }

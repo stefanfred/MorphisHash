@@ -2,7 +2,7 @@
 
 #include <vectorclass.h>
 
-namespace shockhash {
+namespace morphishash {
 
 #if INSTRSET >= 9
     #define SHOCKHASH_SIMD_512_BIT

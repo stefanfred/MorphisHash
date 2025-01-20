@@ -10,7 +10,7 @@
 #include <sdsl/int_vector.hpp>
 #include "ShockHash2FlatBase.h"
 
-namespace shockhash {
+namespace morphishash {
 
     template<size_t THRESHOLD_RANGE>
     constexpr std::array<uint32_t, THRESHOLD_RANGE> _fill_mapping() {
@@ -35,19 +35,22 @@ namespace shockhash {
 
     template<size_t k, bool useBurr, size_t RETRIEVAL_DIFF>
     class ShockHash2Flat {
-        using BaseCase = BijectionsShockHash2<k, shockhash::QuadSplitCandidateFinderList, true, useBurr, k-RETRIEVAL_DIFF>;
+        using BaseCase = BijectionsShockHash2<k, morphishash::QuadSplitCandidateFinderList, true, useBurr,
+                k - RETRIEVAL_DIFF>;
         static constexpr double OVERLOAD_FACTOR = 0.9;
         static constexpr size_t THRESHOLD_BITS = tlx::integer_log2_floor(k) - 1;
         static constexpr size_t THRESHOLD_RANGE = 1ul << THRESHOLD_BITS;
         static constexpr std::array<uint32_t, THRESHOLD_RANGE> THRESHOLD_MAPPING = _fill_mapping<THRESHOLD_RANGE>();
-        static constexpr size_t SEED_BITS = std::ceil(0.442 * k - 0.2);
+        // static constexpr size_t SEED_BITS = std::ceil(0.442 * k - 0.2 + double(RETRIEVAL_DIFF)*0.65);
+        static constexpr size_t SEED_BITS =
+                bij_memoMorphis[RETRIEVAL_DIFF][k] + 4 - (RETRIEVAL_DIFF <= k ? k - RETRIEVAL_DIFF : 0);
         static constexpr size_t MAX_SEED = 1ul << SEED_BITS;
         static constexpr size_t SEED_FALLBACK_INDICATOR = 0;
         sdsl::int_vector<0> thresholdsAndSeeds;
         std::map<size_t, size_t> seedsFallback;
         std::vector<size_t> layerBases;
 
-        RiceBitVector <> solutions;
+        RiceBitVector<> solutions;
 
         ShockHash2<k, useBurr, RETRIEVAL_DIFF> fallbackPhf;
         size_t N;
@@ -68,6 +71,7 @@ namespace shockhash {
             N = keys.size();
             nbuckets = N / k;
             size_t keysInEndBucket = N - nbuckets * k;
+            //std::cout<<N<<" "<<nbuckets<<" "<<keysInEndBucket<<std::endl;
             size_t bucketsThisLayer = std::max(1ul, (size_t) std::ceil(OVERLOAD_FACTOR * nbuckets));
             std::vector<size_t> freePositions;
             std::vector<KeyInfo> hashes;
@@ -124,6 +128,7 @@ namespace shockhash {
             for (auto &hash: hashes) {
                 fallbackPhfContent.push_back(std::to_string(hash.mhc));
             }
+            //std::cout<<fallbackPhfContent.size()<<std::endl;
             fallbackPhf = ShockHash2<k, useBurr, RETRIEVAL_DIFF>(fallbackPhfContent, 2000, 1);
             size_t additionalFreePositions = hashes.size() - freePositions.size();
             size_t nbucketsHandled = layerBases.back();
@@ -156,6 +161,7 @@ namespace shockhash {
             std::vector<std::pair<uint64_t, uint8_t>> ribbonInput;
             RiceBitVector<>::Builder solBuilder;
             for (size_t i = 0; i < nbuckets; i++) {
+                //std::cout<<bucketContents.at(i).size()<<std::endl;
                 std::pair<uint64_t, __uint128_t> seed = BaseCase::findSeed(bucketContents.at(i));
                 if (useBurr)
                     constructRetrieval(bucketContents.at(i), seed.first, ribbonInput, k);
@@ -278,7 +284,7 @@ namespace shockhash {
                     baseCase = sh2remix64(hash ^ seed) % k;
                 } else {
                     __uint128_t remixed = sh2remix128(hash ^ seed);
-                    RiceBitVector<>::Reader r=solutions.reader();
+                    RiceBitVector<>::Reader r = solutions.reader();
                     r.toFixedPos(width, bucket);
                     __uint128_t sol = r.readFixed128(width);
                     __uint128_t row_mask = (__uint128_t(1) << (width)) - 1;

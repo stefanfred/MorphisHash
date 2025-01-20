@@ -42,7 +42,7 @@ void testSingle(size_t iterations) {
 
 template<uint8_t leafSize>
 void test() {
-    using namespace shockhash;
+    using namespace morphishash;
     size_t iterationsShockHash = 4 * std::pow(1.11, 128.0 - leafSize);
     //size_t iterationsRecSplit  = 4 * std::pow(1.55, 28.0 - leafSize);
 

@@ -9,7 +9,7 @@
 #include "SimdUtils.h"
 #endif
 
-namespace shockhash {
+namespace morphishash {
 struct HashedKey {
     uint64_t mhc;
 

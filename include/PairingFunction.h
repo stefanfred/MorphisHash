@@ -2,7 +2,7 @@
 
 #include <cmath>
 
-namespace shockhash {
+namespace morphishash {
 /**
  * Cantor Pairing Function: https://en.wikipedia.org/wiki/Pairing_function
  * Assigns numbers diagonally

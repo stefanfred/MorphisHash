@@ -26,7 +26,7 @@ Constructing a ShockHash perfect hash function is then straightforward:
 
 ```cpp
 std::vector<std::string> keys = {"abc", "def", "123", "456"};
-shockhash::ShockHash<30, false> shockHash(keys, 2000); // ShockHash base case size n=30, bucket size b=2000
+morphishash::ShockHash<30, false> shockHash(keys, 2000); // ShockHash base case size n=30, bucket size b=2000
 std::cout << shockHash("abc") << " " << shockHash("def") << " "
           << shockHash("123") << " " << shockHash("456") << std::endl;
 // Output: 1 3 2 0

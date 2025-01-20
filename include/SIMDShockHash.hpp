@@ -23,7 +23,7 @@
 #error Need to compile SIMDShockHash with -DSIMD
 #endif
 
-namespace shockhash {
+namespace morphishash {
 
 using namespace std;
 using namespace std::chrono;
@@ -392,7 +392,7 @@ class SIMDShockHash {
             a |= tmp[4] | tmp[5] | tmp[6] | tmp[7];
         #endif
         for (; i < to; i++) {
-            auto candidateCells = TinyBinaryCuckooHashTable::getCandidateCells<LEAF_SIZE>(shockhash::HashedKey(keys[i]), x);
+            auto candidateCells = TinyBinaryCuckooHashTable::getCandidateCells<LEAF_SIZE>(morphishash::HashedKey(keys[i]), x);
             candidateCells1Cache[i] = candidateCells.cell1;
             candidateCells2Cache[i] = candidateCells.cell2;
             uint64_t candidatePowers = (1ull << candidateCells.cell1) | (1ull << candidateCells.cell2);
@@ -424,7 +424,7 @@ class SIMDShockHash {
             uint64_t candidateCells2Cache[LEAF_SIZE];
             tinyBinaryCuckooHashTable.clear();
             for (size_t i = 0; i < LEAF_SIZE; i++) {
-                auto key = shockhash::HashedKey(bucket[i + start]);
+                auto key = morphishash::HashedKey(bucket[i + start]);
                 if ((key.mhc & 1) == 0) {
                     keys[keysGroupA] = key.mhc;
                     keysGroupA++;
@@ -506,7 +506,7 @@ class SIMDShockHash {
         } else {
             tinyBinaryCuckooHashTable.clear();
             for (size_t i = start; i < end; i++) {
-                tinyBinaryCuckooHashTable.prepare(shockhash::HashedKey(bucket[i]));
+                tinyBinaryCuckooHashTable.prepare(morphishash::HashedKey(bucket[i]));
             }
             FullVecUq allSet = (1ul << m) - 1;
             FullVecUq mask;
@@ -533,7 +533,7 @@ class SIMDShockHash {
                 xVec += offset;
             }
             for (size_t i = 0; i < m; i++) {
-                size_t cell1 = shockhash::TinyBinaryCuckooHashTable::hashToCell(
+                size_t cell1 = morphishash::TinyBinaryCuckooHashTable::hashToCell(
                         tinyBinaryCuckooHashTable.cells[i]->hash, x, m, 0);
                 ribbonInput.emplace_back(tinyBinaryCuckooHashTable.cells[i]->hash.mhc, i == cell1 ? 0 : 1);
             }
@@ -618,9 +618,9 @@ class SIMDShockHash {
     void compute_thread(int tid, int num_threads, mutex &mtx, std::condition_variable &condition,
                         vector<uint64_t> &bucket_size_acc, vector<uint64_t> &bucket_pos_acc,
                         vector<uint64_t> &sorted_keys, int &next_thread_to_append_builder,
-                        typename shockhash::RiceBitVector<AT>::Builder &builder,
+                        typename morphishash::RiceBitVector<AT>::Builder &builder,
                         std::vector<std::pair<uint64_t, uint8_t>> &ribbonInput) {
-        typename shockhash::RiceBitVector<AT>::Builder local_builder;
+        typename morphishash::RiceBitVector<AT>::Builder local_builder;
         TinyBinaryCuckooHashTable tinyBinaryCuckooHashTable(LEAF_SIZE);
         vector<uint32_t> unary;
         vector<uint64_t> temp(MAX_BUCKET_SIZE);
@@ -820,7 +820,7 @@ public:
         const auto b = reader.readNext(golomb_param(m));
 
         // Begin: difference to SIMDRecSplit.
-        shockhash::HashedKey key(hash.second);
+        morphishash::HashedKey key(hash.second);
         size_t hashFunctionIndex = ribbon.retrieve(hash.second);
         if (ROTATION_FITTING && m == LEAF_SIZE) {
             size_t r = b % LEAF_SIZE;
@@ -838,7 +838,7 @@ public:
             }
             return cum_keys + cell;
         } else {
-            return cum_keys + shockhash::TinyBinaryCuckooHashTable::hashToCell(
+            return cum_keys + morphishash::TinyBinaryCuckooHashTable::hashToCell(
                     key, b + start_seed[NUM_START_SEEDS - 1], m, hashFunctionIndex);
         }
         // End: difference to SIMDRecSplit.

@@ -2,8 +2,9 @@
 #include <iostream>
 #include "XorShift64.h"
 #include "ShockHash2-internal.h"
+#include "ShockHash2.h"
 
-template <template<size_t, size_t> class T, size_t leafSize, size_t widthDiff>
+template<template<size_t, size_t> class T, size_t leafSize, size_t widthDiff>
 void dispatchLeafSize() {
     if constexpr (leafSize > 1) {
         dispatchLeafSize<T, leafSize - 1, widthDiff>();
@@ -13,17 +14,14 @@ void dispatchLeafSize() {
         return;
     }
 
-    constexpr size_t width =  leafSize >= widthDiff ? leafSize - widthDiff : 0;
+    constexpr uint64_t width = leafSize >= widthDiff ? leafSize - widthDiff : 0;
 
     std::vector<uint64_t> leaf(leafSize);
     util::XorShift64 prng;
     std::vector<__uint128_t> seeds;
-    size_t iterations;
-    if (leafSize < 40) {
-        iterations = 10;
-    } else {
-        iterations = 2;
-    }
+    uint64_t bitsexp = uint64_t(morphishash::bij_memoMorphis[widthDiff][leafSize]) - width;
+    uint64_t bitsexpmax = uint64_t(morphishash::bij_memoMorphis[morphishash::MAX_DIFF][morphishash::MAX_LEAF_SIZE2]) - uint64_t(morphishash::MAX_LEAF_SIZE2) + uint64_t(morphishash::MAX_DIFF);
+    uint64_t iterations = std::min(uint64_t(50) << (bitsexpmax - bitsexp), uint64_t(5000));
     seeds.reserve(iterations);
     for (size_t i = 0; i < iterations; i++) {
         for (size_t k = 0; k < leafSize; k++) {
@@ -36,7 +34,7 @@ void dispatchLeafSize() {
     size_t lowerBest = 0;
     for (size_t lower = 0; lower < 128; lower++) {
         size_t spaceBits = 0;
-        for (__uint128_t seed : seeds) {
+        for (__uint128_t seed: seeds) {
             spaceBits += (seed >> lower) + 1 + lower;
         }
         if (spaceBits < spaceBest) {
@@ -50,7 +48,7 @@ void dispatchLeafSize() {
     std::cout << (lowerBest < 10 ? " " : "") << lowerBest << ", " << std::flush;
 }
 
-template <template<size_t, size_t> class T, size_t widthDiff>
+template<template<size_t, size_t> class T, size_t widthDiff>
 void dispatchWidth() {
     if constexpr (widthDiff <= morphishash::MAX_DIFF) {
         std::cout << "{" << std::flush;
@@ -61,7 +59,7 @@ void dispatchWidth() {
 }
 
 
-template <size_t leafSize, size_t width>
+template<size_t leafSize, size_t width>
 using ShockHash2 = std::conditional_t<(leafSize >= 10),
         morphishash::BijectionsShockHash2<leafSize, morphishash::QuadSplitCandidateFinderBuckets, true, false, width>,
         morphishash::BijectionsShockHash2<leafSize, morphishash::BasicSeedCandidateFinder::Finder, true, false, width>>;

@@ -13,16 +13,16 @@ using ShockHashRotate = shockhash::SIMDShockHash<l, true>;
 #else
 //#define STATS
 //#define MORESTATS
-#include "ShockHash.h"
+#include "MorphisHash.h"
 
 template<size_t l>
-using ShockHash = morphishash::ShockHash<l, false>;
+using ShockHash = morphishash::MorphisHash<l, false>;
 template<size_t l>
-using ShockHashRotate = morphishash::ShockHash<l, true>;
+using ShockHashRotate = morphishash::MorphisHash<l, true>;
 #endif
 
-#include "ShockHash2.h"
-#include "ShockHash2Flat.h"
+#include "MorphisHash2.h"
+#include "MorphisHash2Flat.h"
 
 #define DO_NOT_OPTIMIZE(value) asm volatile("" : : "r,m"(value) : "memory")
 
@@ -166,9 +166,9 @@ int main(int argc, const char *const *argv) {
     }
 
     if (shockhash2) {
-        dispatchLeafSize<morphishash::ShockHash2, morphishash::MAX_LEAF_SIZE2>();
+        dispatchLeafSize<morphishash::MorphisHash2, morphishash::MAX_LEAF_SIZE2>();
     } else if (shockhash2flat) {
-        dispatchLeafSize<morphishash::ShockHash2Flat, morphishash::MAX_LEAF_SIZE2>();
+        dispatchLeafSize<morphishash::MorphisHash2Flat, morphishash::MAX_LEAF_SIZE2>();
     }
     //construct<shockhash::ShockHash2Flat<70, false, 4>>();
     return 0;

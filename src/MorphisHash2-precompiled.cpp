@@ -1,5 +1,5 @@
-#include "ShockHash2-precompiled.h"
-#include "ShockHash2-internal.h"
+#include "MorphisHash2-precompiled.h"
+#include "MorphisHash2-internal.h"
 
 namespace morphishash {
 

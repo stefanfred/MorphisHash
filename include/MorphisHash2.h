@@ -21,9 +21,9 @@
 #include <Sorter.hpp>
 #include <bitset>
 #include <SimpleRibbon.h>
-#include "ShockHash.h"
-#include "ShockHash2-precompiled.h"
-#include "ShockHash2-internal.h"
+#include "MorphisHash.h"
+#include "MorphisHash2-precompiled.h"
+#include "MorphisHash2-internal.h"
 #include "RiceBitVector.h"
 
 namespace morphishash {
@@ -104,7 +104,7 @@ namespace morphishash {
     }
 
     template<size_t LEAF_SIZE, bool useBurr, size_t RETRIEVAL_DIFF>
-    class ShockHash2 {
+    class MorphisHash2 {
         static_assert(LEAF_SIZE <= MAX_LEAF_SIZE2);
         static constexpr AllocType AT = sux::util::AllocType::MALLOC;
         static constexpr size_t _leaf = LEAF_SIZE;
@@ -123,10 +123,10 @@ namespace morphishash {
         Ribbon ribbon;
 
     public:
-        ShockHash2() {}
+        MorphisHash2() {}
 
 
-        ShockHash2(const vector<string> &keys, const size_t bucket_size, size_t num_threads = 1) {
+        MorphisHash2(const vector<string> &keys, const size_t bucket_size, size_t num_threads = 1) {
             this->keys_count = keys.size();
             hash128_t *h = (hash128_t *) malloc(this->keys_count * sizeof(hash128_t));
             if (num_threads == 1) {
@@ -153,7 +153,7 @@ namespace morphishash {
             free(h);
         }
 
-        ShockHash2(vector<hash128_t> &keys, const size_t bucket_size, size_t num_threads = 1) {
+        MorphisHash2(vector<hash128_t> &keys, const size_t bucket_size, size_t num_threads = 1) {
             this->keys_count = keys.size();
             hash_gen(&keys[0], num_threads, bucket_size);
         }

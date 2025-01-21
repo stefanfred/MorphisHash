@@ -7,7 +7,7 @@
 #include <chrono>
 #include <set>
 #include <unordered_set>
-#include <ShockHash2-precompiled.h>
+#include <MorphisHash2-precompiled.h>
 #include <PairingFunction.h>
 
 static constexpr uint64_t rotate(size_t l, uint64_t val, uint32_t x) {

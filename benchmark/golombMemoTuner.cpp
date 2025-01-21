@@ -1,8 +1,8 @@
 #include <vector>
 #include <iostream>
 #include "XorShift64.h"
-#include "ShockHash2-internal.h"
-#include "ShockHash2.h"
+#include "MorphisHash2-internal.h"
+#include "MorphisHash2.h"
 
 template<template<size_t, size_t> class T, size_t leafSize, size_t widthDiff>
 void dispatchLeafSize() {

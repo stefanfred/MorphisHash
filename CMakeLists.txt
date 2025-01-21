@@ -40,7 +40,7 @@ endif()
 
 # ---------------------------- Library Setup ----------------------------
 
-add_library(MatrixShockHash2Precompiled SHARED src/ShockHash2-precompiled.cpp)
+add_library(MatrixShockHash2Precompiled SHARED src/MorphisHash2-precompiled.cpp)
 target_compile_features(MatrixShockHash2Precompiled PRIVATE cxx_std_20)
 target_include_directories(MatrixShockHash2Precompiled PRIVATE include)
 target_link_libraries(MatrixShockHash2Precompiled PUBLIC ips2ra tlx Sux ByteHamsterUtil)

@@ -5,10 +5,10 @@
 #include <EliasFano.h>
 #include <MurmurHash64.h>
 #include <tlx/math/integer_log2.hpp>
-#include <ShockHash2-internal.h>
-#include <ShockHash2.h>
+#include <MorphisHash2-internal.h>
+#include <MorphisHash2.h>
 #include <sdsl/int_vector.hpp>
-#include "ShockHash2FlatBase.h"
+#include "MorphisHash2FlatBase.h"
 
 namespace morphishash {
 
@@ -34,7 +34,7 @@ namespace morphishash {
     }
 
     template<size_t k, bool useBurr, size_t RETRIEVAL_DIFF>
-    class ShockHash2Flat {
+    class MorphisHash2Flat {
         using BaseCase = BijectionsShockHash2<k, morphishash::QuadSplitCandidateFinderList, true, useBurr,
                 k - RETRIEVAL_DIFF>;
         static constexpr double OVERLOAD_FACTOR = 0.9;
@@ -52,7 +52,7 @@ namespace morphishash {
 
         RiceBitVector<> solutions;
 
-        ShockHash2<k, useBurr, RETRIEVAL_DIFF> fallbackPhf;
+        MorphisHash2<k, useBurr, RETRIEVAL_DIFF> fallbackPhf;
         size_t N;
         size_t nbuckets;
         pasta::BitVector freePositionsBv;
@@ -61,13 +61,13 @@ namespace morphishash {
         Ribbon ribbon;
         size_t layers = 2;
     public:
-        explicit ShockHash2Flat(const std::vector<std::string> &keys, size_t ignore, size_t ignore2)
-                : ShockHash2Flat(keys) {
+        explicit MorphisHash2Flat(const std::vector<std::string> &keys, size_t ignore, size_t ignore2)
+                : MorphisHash2Flat(keys) {
             (void) ignore;
             (void) ignore2;
         }
 
-        explicit ShockHash2Flat(const std::vector<std::string> &keys) {
+        explicit MorphisHash2Flat(const std::vector<std::string> &keys) {
             N = keys.size();
             nbuckets = N / k;
             size_t keysInEndBucket = N - nbuckets * k;
@@ -129,7 +129,7 @@ namespace morphishash {
                 fallbackPhfContent.push_back(std::to_string(hash.mhc));
             }
             //std::cout<<fallbackPhfContent.size()<<std::endl;
-            fallbackPhf = ShockHash2<k, useBurr, RETRIEVAL_DIFF>(fallbackPhfContent, 2000, 1);
+            fallbackPhf = MorphisHash2<k, useBurr, RETRIEVAL_DIFF>(fallbackPhfContent, 2000, 1);
             size_t additionalFreePositions = hashes.size() - freePositions.size();
             size_t nbucketsHandled = layerBases.back();
             {

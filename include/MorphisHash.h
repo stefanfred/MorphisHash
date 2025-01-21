@@ -132,7 +132,7 @@ template <size_t LEAF_SIZE> static constexpr array<uint32_t, MAX_BUCKET_SIZE> fi
 #define skip_nodes(m) ((memo[m] >> 16) & 0x7FF)
 
 template <size_t LEAF_SIZE, bool ROTATION_FITTING = false>
-class ShockHash {
+class MorphisHash {
         static_assert(LEAF_SIZE <= MAX_LEAF_SIZE);
         static constexpr AllocType AT = sux::util::AllocType::MALLOC;
         static constexpr size_t _leaf = LEAF_SIZE;
@@ -153,10 +153,10 @@ class ShockHash {
         Ribbon ribbon;
 
     public:
-        ShockHash() {}
+        MorphisHash() {}
 
 
-        ShockHash(const vector<string> &keys, const size_t bucket_size, size_t num_threads = 1) {
+        MorphisHash(const vector<string> &keys, const size_t bucket_size, size_t num_threads = 1) {
             this->bucket_size = bucket_size;
             this->keys_count = keys.size();
             hash128_t *h = (hash128_t *)malloc(this->keys_count * sizeof(hash128_t));
@@ -184,7 +184,7 @@ class ShockHash {
             free(h);
         }
 
-        ShockHash(vector<hash128_t> &keys, const size_t bucket_size, size_t num_threads = 1) {
+        MorphisHash(vector<hash128_t> &keys, const size_t bucket_size, size_t num_threads = 1) {
             this->bucket_size = bucket_size;
             this->keys_count = keys.size();
             hash_gen(&keys[0], num_threads);
@@ -282,7 +282,7 @@ class ShockHash {
         /** Returns an estimate of the size in bits of this structure. */
         size_t getBits() {
             return ef.bitCountCumKeys() + ef.bitCountPosition()
-                    + descriptors.getBits() + 8 * ribbon.sizeBytes() + 8 * sizeof(ShockHash);
+                    + descriptors.getBits() + 8 * ribbon.sizeBytes() + 8 * sizeof(MorphisHash);
         }
 
         void printBits() {

@@ -1,18 +1,9 @@
-[submodule "extlib/vectorclass"]
-	path = extlib/vectorclass
-	url = https://github.com/vectorclass/version2.git
-[submodule "extlib/gcem"]
-	path = extlib/gcem
-	url = https://github.com/kthohr/gcem.git
 [submodule "extlib/tlx"]
 	path = extlib/tlx
 	url = https://github.com/tlx/tlx.git
 [submodule "extlib/util"]
 	path = extlib/util
 	url = https://github.com/ByteHamster/Util.git
-[submodule "extlib/simpleRibbon"]
-	path = extlib/simpleRibbon
-	url = https://github.com/ByteHamster/SimpleRibbon.git
 [submodule "extlib/sux"]
 	path = extlib/sux
 	url = https://github.com/ByteHamster-etc/sux.git

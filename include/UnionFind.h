@@ -66,4 +66,4 @@ class UnionFind {
             return atLeastOneWasTree;
         }
 };
-} // Namespace shockhash
+} // Namespace morphishash

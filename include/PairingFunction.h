@@ -94,4 +94,4 @@ inline bool isFloatAccurateElegant(size_t x, size_t y) {
     auto [restoredX, restoredY] = unpairElegant(pairElegant(x, y));
     return x == restoredX && y == restoredY;
 }
-} // namespace shockhash
+} // namespace morphishash

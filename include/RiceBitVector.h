@@ -254,4 +254,4 @@ namespace morphishash {
         Reader reader() { return Reader(data); }
     };
 
-} // namespace shockhash
+} // namespace morphishash

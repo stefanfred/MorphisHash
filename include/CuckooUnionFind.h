@@ -41,4 +41,4 @@ class CuckooUnionFind {
             return false;
         }
 };
-} // namespace shockhash
+} // namespace morphishash

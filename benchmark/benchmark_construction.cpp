@@ -1,35 +1,18 @@
 #include <chrono>
 #include <iostream>
-#include <XorShift64.h>
+#include <bytehamster/util/XorShift64.h>
 #include <tlx/cmdline_parser.hpp>
 #include "BenchmarkData.h"
 
-#ifdef SIMD
-#include "SIMDShockHash.hpp"
-template <size_t l>
-using ShockHash = shockhash::SIMDShockHash<l, false>;
-template <size_t l>
-using ShockHashRotate = shockhash::SIMDShockHash<l, true>;
-#else
-//#define STATS
-//#define MORESTATS
+
 #include "MorphisHash.h"
-
-template<size_t l>
-using ShockHash = morphishash::MorphisHash<l, false>;
-template<size_t l>
-using ShockHashRotate = morphishash::MorphisHash<l, true>;
-#endif
-
-#include "MorphisHash2.h"
-#include "MorphisHash2Flat.h"
+#include "MorphisHashFlat.h"
 
 #define DO_NOT_OPTIMIZE(value) asm volatile("" : : "r,m"(value) : "memory")
 
 bool rotate = false;
-bool shockhash2 = false;
-bool shockhash2flat = false;
-bool useBurr = false;
+bool morphisHash = false;
+bool morphisHashflat = false;
 size_t numObjects = 1e6;
 size_t numQueries = 1e6;
 size_t leafSize = 20;
@@ -41,7 +24,7 @@ template<typename HashFunc>
 void construct() {
     auto time = std::chrono::system_clock::now();
     long seed = std::chrono::duration_cast<std::chrono::milliseconds>(time.time_since_epoch()).count();
-    util::XorShift64 prng(seed);
+    bytehamster::util::XorShift64 prng(seed);
 #define STRING_KEYS
 #ifdef STRING_KEYS
     std::vector<std::string> keys = generateInputData(numObjects);
@@ -104,10 +87,10 @@ void construct() {
 #endif
     if (rotate) {
         method += "Rotate";
-    } else if (shockhash2) {
-        method += (useBurr ? "2Burr" : "2Fixed");
-    } else if (shockhash2flat) {
-        method += (useBurr ? "2flatBurr" : "2flatFixed");
+    } else if (morphisHash) {
+        method += "morphisHash";
+    } else if (morphisHashflat) {
+        method += "morphisHashFlat";
     }
     std::cout << "RESULT"
               << " method=" << method
@@ -123,27 +106,25 @@ void construct() {
               << std::endl;
 }
 
-template<template<size_t, bool, size_t> class RecSplit, size_t I, size_t WS>
+template<template<size_t, size_t> class HashFunc, size_t I, size_t WS>
 void dispatchWidth() {
-    if (useBurr) {
-        construct<RecSplit<I, true, 0>>();
-    } else if (WS == relativeWidth) {
-        construct<RecSplit<I, false, WS>>();
+    if (WS == relativeWidth) {
+        construct<HashFunc<I, WS>>();
     } else if constexpr (WS == 0) {
         std::cerr << "The relativeWidth " << relativeWidth << " was not compiled into this binary." << std::endl;
     } else {
-        dispatchWidth<RecSplit, I, WS - 1>();
+        dispatchWidth<HashFunc, I, WS - 1>();
     }
 }
 
-template<template<size_t, bool, size_t> class RecSplit, size_t I>
+template<template<size_t, size_t> class HashFunc, size_t I>
 void dispatchLeafSize() {
     if constexpr (I <= 1) {
         std::cerr << "The leafSize " << leafSize << " was not compiled into this binary." << std::endl;
     } else if (I == leafSize) {
-        dispatchWidth<RecSplit, I, std::min(morphishash::MAX_DIFF, I)>();
+        dispatchWidth<HashFunc, I, std::min(morphishash::MAX_DIFF, I)>();
     } else {
-        dispatchLeafSize<RecSplit, I - 1>();
+        dispatchLeafSize<HashFunc, I - 1>();
     }
 }
 
@@ -152,24 +133,21 @@ int main(int argc, const char *const *argv) {
     cmd.add_bytes('n', "numObjects", numObjects, "Number of objects to construct with");
     cmd.add_bytes('q', "numQueries", numQueries, "Number of queries to measure");
     cmd.add_bytes('l', "leafSize", leafSize, "Leaf size to construct");
-    cmd.add_bytes('w', "relativeWidth", relativeWidth,
-                  "Bits less than leaf size for fixed width retrieval. Use leafSize for BuRR mode.");
+    cmd.add_bytes('w', "relativeWidth", relativeWidth, "Bits less than leaf size for fixed width retrieval.");
     cmd.add_bytes('b', "bucketSize", bucketSize, "Bucket size to construct");
     cmd.add_bool('r', "rotate", rotate, "Apply rotation fitting");
-    cmd.add_bool('2', "shockhash2", shockhash2, "ShockHash2");
-    cmd.add_bool('f', "shockhash2flat", shockhash2flat, "ShockHash2 flat");
-    cmd.add_bool('u', "useburr", useBurr, "ShockHash2 burr mode");
+    cmd.add_bool('m', "morphisHash", morphisHash, "morphisHash");
+    cmd.add_bool('f', "morphisHashFlat", morphisHashflat, "morphisHash flat");
     cmd.add_bytes('t', "threads", threads, "Number of threads");
 
     if (!cmd.process(argc, argv)) {
         return 1;
     }
 
-    if (shockhash2) {
-        dispatchLeafSize<morphishash::MorphisHash2, morphishash::MAX_LEAF_SIZE2>();
-    } else if (shockhash2flat) {
-        dispatchLeafSize<morphishash::MorphisHash2Flat, morphishash::MAX_LEAF_SIZE2>();
+    if (morphisHash) {
+        dispatchLeafSize<morphishash::MorphisHash, morphishash::MAX_LEAF_SIZE>();
+    } else if (morphisHashflat) {
+        dispatchLeafSize<morphishash::MorphisHashFlat, morphishash::MAX_LEAF_SIZE>();
     }
-    //construct<shockhash::ShockHash2Flat<70, false, 4>>();
     return 0;
 }

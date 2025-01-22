@@ -18,7 +18,7 @@ for leafSize in $(seq 2 2 40); do
         params="--numObjects 1M --numQueries 0 --leafSize $leafSize --bucketSize $bucketSize"
         ./Benchmark $params
         ./Benchmark $params --rotate
-        ./Benchmark $params --shockhash2
+        ./Benchmark $params --morphisHash
     done
 done
 
@@ -27,7 +27,7 @@ for leafSize in $(seq 42 2 50); do
     for bucketSize in 100 500 1000 2000; do
         params="--numObjects 1M --numQueries 0 --leafSize $leafSize --bucketSize $bucketSize"
         ./Benchmark $params --rotate
-        ./Benchmark $params --shockhash2
+        ./Benchmark $params --morphisHash
     done
 done
 
@@ -35,6 +35,6 @@ done
 for leafSize in $(seq 50 2 120); do
     for bucketSize in 100 500 1000 2000; do
         params="--numObjects 1M --numQueries 0 --leafSize $leafSize --bucketSize $bucketSize"
-        ./Benchmark $params --shockhash2
+        ./Benchmark $params --morphisHash
     done
 done

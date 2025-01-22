@@ -1,8 +1,8 @@
 #include <vector>
 #include <iostream>
-#include "XorShift64.h"
-#include "MorphisHash2-internal.h"
-#include "MorphisHash2.h"
+#include <bytehamster/util/XorShift64.h>
+#include "MorphisHash-internal.h"
+#include "MorphisHash.h"
 
 template<template<size_t, size_t> class T, size_t leafSize, size_t widthDiff>
 void dispatchLeafSize() {
@@ -17,10 +17,10 @@ void dispatchLeafSize() {
     constexpr uint64_t width = leafSize >= widthDiff ? leafSize - widthDiff : 0;
 
     std::vector<uint64_t> leaf(leafSize);
-    util::XorShift64 prng;
+    bytehamster::util::XorShift64 prng;
     std::vector<__uint128_t> seeds;
     uint64_t bitsexp = uint64_t(morphishash::bij_memoMorphis[widthDiff][leafSize]) - width;
-    uint64_t bitsexpmax = uint64_t(morphishash::bij_memoMorphis[morphishash::MAX_DIFF][morphishash::MAX_LEAF_SIZE2]) - uint64_t(morphishash::MAX_LEAF_SIZE2) + uint64_t(morphishash::MAX_DIFF);
+    uint64_t bitsexpmax = uint64_t(morphishash::bij_memoMorphis[morphishash::MAX_DIFF][morphishash::MAX_LEAF_SIZE]) - uint64_t(morphishash::MAX_LEAF_SIZE) + uint64_t(morphishash::MAX_DIFF);
     uint64_t iterations = std::min(uint64_t(50) << (bitsexpmax - bitsexp), uint64_t(5000));
     seeds.reserve(iterations);
     for (size_t i = 0; i < iterations; i++) {
@@ -52,7 +52,7 @@ template<template<size_t, size_t> class T, size_t widthDiff>
 void dispatchWidth() {
     if constexpr (widthDiff <= morphishash::MAX_DIFF) {
         std::cout << "{" << std::flush;
-        dispatchLeafSize<T, morphishash::MAX_LEAF_SIZE2, widthDiff>();
+        dispatchLeafSize<T, morphishash::MAX_LEAF_SIZE, widthDiff>();
         std::cout << "}, " << std::flush;
         dispatchWidth<T, widthDiff + 1>();
     }
@@ -60,10 +60,10 @@ void dispatchWidth() {
 
 
 template<size_t leafSize, size_t width>
-using ShockHash2 = std::conditional_t<(leafSize >= 10),
-        morphishash::BijectionsShockHash2<leafSize, morphishash::QuadSplitCandidateFinderBuckets, true, false, width>,
-        morphishash::BijectionsShockHash2<leafSize, morphishash::BasicSeedCandidateFinder::Finder, true, false, width>>;
+using MorphisHash = std::conditional_t<(leafSize >= 10),
+        morphishash::BijectionsMorphisHash<leafSize, morphishash::QuadSplitCandidateFinderBuckets, true, false, width>,
+        morphishash::BijectionsMorphisHash<leafSize, morphishash::BasicSeedCandidateFinder::Finder, true, false, width>>;
 
 int main() {
-    dispatchWidth<ShockHash2, 0>();
+    dispatchWidth<MorphisHash, 0>();
 }

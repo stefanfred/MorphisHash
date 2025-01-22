@@ -86,8 +86,8 @@ namespace morphishash {
                 while (true) {
                     uint64_t taken = 0;
                     for (size_t i = 0; i < leafSize; i++) {
-                        uint64_t hash = ::util::remix(keys.at(i) + currentSeed);
-                        seedCache.hashes[i] = ::util::fastrange64(hash, (leafSize + 1) / 2);
+                        uint64_t hash = bytehamster::util::remix(keys.at(i) + currentSeed);
+                        seedCache.hashes[i] = bytehamster::util::fastrange64(hash, (leafSize + 1) / 2);
                         // std::cout << keys.at(i) << " " << uint64_t(seedCache.hashes[i]) << " " << currentSeed << std::endl;
                         taken |= 1ul << seedCache.hashes[i];
                     }
@@ -111,7 +111,7 @@ namespace morphishash {
 
     public:
         static size_t hash(uint64_t key, uint64_t seed, size_t leafSize) {
-            return ::util::fastrange64(::util::remix(key + seed), (leafSize + 1) / 2);
+            return bytehamster::util::fastrange64(bytehamster::util::remix(key + seed), (leafSize + 1) / 2);
         }
     };
 
@@ -169,13 +169,13 @@ namespace morphishash {
                     takenA = 0;
                     takenB = 0;
                     for (size_t i = 0; i < sizeSetA; i++) {
-                        uint64_t hash = ::util::remix(keys[i] + currentSeed);
-                        seedCache.hashes[i] = ::util::fastrange64(hash, (leafSize + 1) / 2);
+                        uint64_t hash = bytehamster::util::remix(keys[i] + currentSeed);
+                        seedCache.hashes[i] = bytehamster::util::fastrange64(hash, (leafSize + 1) / 2);
                         takenA |= 1ul << seedCache.hashes[i];
                     }
                     for (size_t i = sizeSetA; i < leafSize; i++) {
-                        uint64_t hash = ::util::remix(keys[i] + currentSeed);
-                        seedCache.hashes[i] = ::util::fastrange64(hash, (leafSize + 1) / 2);
+                        uint64_t hash = bytehamster::util::remix(keys[i] + currentSeed);
+                        seedCache.hashes[i] = bytehamster::util::fastrange64(hash, (leafSize + 1) / 2);
                         takenB |= 1ul << seedCache.hashes[i];
                     }
                 }
@@ -191,7 +191,8 @@ namespace morphishash {
         static size_t hash(uint64_t key, uint64_t seed, size_t leafSize) {
             size_t hashSeed = seed / ((leafSize + 1) / 2);
             size_t rotation = seed % ((leafSize + 1) / 2);
-            size_t baseHash = ::util::fastrange64(::util::remix(key + hashSeed), (leafSize + 1) / 2);
+            size_t baseHash = bytehamster::util::fastrange64(bytehamster::util::remix(key + hashSeed),
+                                                             (leafSize + 1) / 2);
             if ((key & 1) == 0) {
                 return baseHash;
             } else {
@@ -441,12 +442,12 @@ namespace morphishash {
                 SeedCache<leafSize, isolatedVertexFilter> cache = {};
                 cache.seed = pairElegant(seedA, seedB);
                 for (size_t i = 0; i < sizeSetA; i++) {
-                    uint64_t hash = ::util::remix(keys[i] + seedA);
-                    cache.hashes[i] = ::util::fastrange64(hash, (leafSize + 1) / 2);
+                    uint64_t hash = bytehamster::util::remix(keys[i] + seedA);
+                    cache.hashes[i] = bytehamster::util::fastrange64(hash, (leafSize + 1) / 2);
                 }
                 for (size_t i = sizeSetA; i < leafSize; i++) {
-                    uint64_t hash = ::util::remix(keys[i] + seedB);
-                    cache.hashes[i] = ::util::fastrange64(hash, (leafSize + 1) / 2);
+                    uint64_t hash = bytehamster::util::remix(keys[i] + seedB);
+                    cache.hashes[i] = bytehamster::util::fastrange64(hash, (leafSize + 1) / 2);
                 }
                 if constexpr (isolatedVertexFilter) {
                     calculateIsolatedVertices(cache);
@@ -460,12 +461,12 @@ namespace morphishash {
                 uint64_t takenA = 0;
                 uint64_t takenB = 0;
                 for (size_t i = 0; i < sizeSetA; i++) {
-                    uint64_t hash = ::util::remix(keys[i] + currentSeed);
-                    takenA |= 1ul << ::util::fastrange64(hash, (leafSize + 1) / 2);
+                    uint64_t hash = bytehamster::util::remix(keys[i] + currentSeed);
+                    takenA |= 1ul << bytehamster::util::fastrange64(hash, (leafSize + 1) / 2);
                 }
                 for (size_t i = sizeSetA; i < leafSize; i++) {
-                    uint64_t hash = ::util::remix(keys[i] + currentSeed);
-                    takenB |= 1ul << ::util::fastrange64(hash, (leafSize + 1) / 2);
+                    uint64_t hash = bytehamster::util::remix(keys[i] + currentSeed);
+                    takenB |= 1ul << bytehamster::util::fastrange64(hash, (leafSize + 1) / 2);
                 }
 
                 for (const auto [candidateSeed, candidateMask]: candidatesA.filter(takenB)) {
@@ -506,7 +507,7 @@ namespace morphishash {
             auto [seedA, seedB] = unpairElegant(seed);
             uint64_t seedToUse = ((key & 1) == 0) ? seedA : seedB;
 
-            return ::util::fastrange64(::util::remix(key + seedToUse), (leafSize + 1) / 2);
+            return bytehamster::util::fastrange64(bytehamster::util::remix(key + seedToUse), (leafSize + 1) / 2);
         }
     };
 
@@ -623,16 +624,15 @@ namespace morphishash {
     }
 
 
-    static constexpr size_t MAX_LEAF_SIZE2 = 106;
-    static constexpr size_t MAX_RETRIEVAL_WIDTH = MAX_LEAF_SIZE2;
+    static constexpr size_t MAX_LEAF_SIZE = 106;
     static constexpr size_t MAX_DIFF = 7;
 
 /**
- * ShockHash2 base case.
+ * MorphisHash base case.
  * Note that while this can be used with uneven leaf sizes, it achieves suboptimal space and time.
  */
-    template<size_t leafSize, template<size_t, bool> typename SeedCandidateFinder, bool isolatedVertexFilter = false, bool useBurr = false, size_t matrix_width = leafSize>
-    class BijectionsShockHash2 {
+    template<size_t leafSize, template<size_t, bool> typename SeedCandidateFinder, bool isolatedVertexFilter = false, size_t matrix_width = leafSize>
+    class BijectionsMorphisHash {
 
     private:
         using CandidateFinder = SeedCandidateFinder<leafSize, isolatedVertexFilter>;
@@ -657,7 +657,7 @@ namespace morphishash {
 
         static inline std::pair<uint64_t, __uint128_t> findSeed(const std::vector<uint64_t> &inKeys) {
             assert(inKeys.size() == leafSize);
-            if constexpr (not useBurr and matrix_width == 0) {
+            if constexpr (matrix_width == 0) {
                 size_t seed = 0;
                 std::bitset<leafSize> taken;
                 while (true) {
@@ -722,132 +722,85 @@ namespace morphishash {
                         continue;
                     }
 
-                    if constexpr (useBurr) {
-                        return {fullSeed, 0};
-                    } else {
-                        std::array<matrixRow, leafSize> matrix{};
-                        std::bitset<leafSize> sol{};
-                        sol.set();
+                    std::array<matrixRow, leafSize> matrix{};
+                    std::bitset<leafSize> sol{};
+                    sol.set();
 
-                        // insert keys
-                        for (size_t i = 0; i < leafSize; i++) {
-                            //matrixRow hash = keys[i] & row_mask;
-                            matrixRow hash = sh2remix<bitMode128>(keys[i] ^ fullSeed) & row_mask;
-                            auto addCand = [&](size_t end, bool orientation) {
-                                matrix[end] ^= hash;
-                                if (!orientation)
-                                    sol[end].flip();
-                            };
-                            addCand(newCandidateShifted.hashes[i], false);
-                            addCand(other.hashes[i], true);
-                        }
+                    // insert keys
+                    for (size_t i = 0; i < leafSize; i++) {
+                        //matrixRow hash = keys[i] & row_mask;
+                        matrixRow hash = sh2remix<bitMode128>(keys[i] ^ fullSeed) & row_mask;
+                        auto addCand = [&](size_t end, bool orientation) {
+                            matrix[end] ^= hash;
+                            if (!orientation)
+                                sol[end].flip();
+                        };
+                        addCand(newCandidateShifted.hashes[i], false);
+                        addCand(other.hashes[i], true);
+                    }
 
 
-                        // gauss
-                        std::bitset<leafSize> usedrow{};
-                        for (size_t coloumn = 0; coloumn < matrix_width; ++coloumn) {
-                            // find usable row
-                            size_t pivotrowindex = 0;
-                            for (; pivotrowindex < leafSize; ++pivotrowindex) {
-                                if (not usedrow[pivotrowindex] and check_bit(matrix[pivotrowindex], coloumn)) {
-                                    break;
-                                }
-                            }
-                            if (pivotrowindex == leafSize) {
-                                // zero coloumn
-                                continue;
-                            }
-                            usedrow[pivotrowindex] = true;
-                            matrixRow pivotrow = matrix[pivotrowindex];
-                            bool pivotsol = sol[pivotrowindex];
-
-                            // add to all other
-                            for (size_t rowindex = 0; rowindex < leafSize; ++rowindex) {
-                                if (rowindex != pivotrowindex && check_bit(matrix[rowindex], coloumn)) {
-                                    matrix[rowindex] ^= pivotrow;
-                                    sol[rowindex] = sol[rowindex] != pivotsol;
-                                }
+                    // gauss
+                    std::bitset<leafSize> usedrow{};
+                    for (size_t coloumn = 0; coloumn < matrix_width; ++coloumn) {
+                        // find usable row
+                        size_t pivotrowindex = 0;
+                        for (; pivotrowindex < leafSize; ++pivotrowindex) {
+                            if (not usedrow[pivotrowindex] and check_bit(matrix[pivotrowindex], coloumn)) {
+                                break;
                             }
                         }
-
-                        // check solvable
-                        matrixRow res = 0;
-                        bool fail = false;
-                        for (size_t rowindex = 0; rowindex < leafSize and not fail; ++rowindex) {
-                            matrixRow row = matrix[rowindex];
-                            bool s = sol[rowindex];
-                            if (row == 0) {
-                                if (s) {
-                                    // contradiction
-                                    fail = true;
-                                    break;
-                                } else {
-                                    // redundant
-                                    continue;
-                                }
-                            }
-                            int pivotIndex = std::countr_zero(row);
-                            res = set_bit(res, pivotIndex, s);
-                        }
-
-                        if (fail) {
+                        if (pivotrowindex == leafSize) {
+                            // zero coloumn
                             continue;
                         }
+                        usedrow[pivotrowindex] = true;
+                        matrixRow pivotrow = matrix[pivotrowindex];
+                        bool pivotsol = sol[pivotrowindex];
 
-
-                        /*std::bitset<leafSize> occ;
-                        for (size_t i = 0; i < leafSize; ++i) {
-                            size_t pos = queryHash(fullSeed, keys[i],
-                                                   parity(res & row_mask & sh2remix<bitMode128>(keys[i] ^ fullSeed)),
-                                                   leafSize);
-                            if (occ[pos]) {
-                                std::cout << " FAIL " << std::endl;
-                                exit(123);
+                        // add to all other
+                        for (size_t rowindex = 0; rowindex < leafSize; ++rowindex) {
+                            if (rowindex != pivotrowindex && check_bit(matrix[rowindex], coloumn)) {
+                                matrix[rowindex] ^= pivotrow;
+                                sol[rowindex] = sol[rowindex] != pivotsol;
                             }
-                        }*/
-                        //std::cout << " VALID " << std::endl;
-/*
-                        for (size_t i = 0; i < leafSize; ++i) {
-                            std::cout << keys[i] << " " << queryHash(fullSeed, keys[i], 0, leafSize) << " "
-                                      << queryHash(fullSeed, keys[i], 1, leafSize) << " "
-                                      << queryHash(fullSeed, keys[i],
-                                                   parity(res & row_mask & sh2remix(keys[i] ^ fullSeed)), leafSize)
-                                      << std::endl;*/
-                            //std::cout << keys[i] <<" "<< (parity(keys[i] & uint64_t(res & row_mask)) ? std::to_string(newCandidateShifted.hashes[i]) : std::to_string(other.hashes[i]))<<" "<<std::to_string(newCandidateShifted.hashes[i])<<" "<<std::to_string(other.hashes[i])<< " "<<seed1<<" "<<seed2<<  std::endl;
-                            //std::cout<<(CandidateFinder::Finder::hash(keys[i], seed1))<<" "<<CandidateFinder::hash(keys[i], seed2)<<std::endl;
-                            /*std::cout << keys[i] << " " << " " << fullSeed << " " << uint64_t(res & row_mask) << " "
-                                      << leafSize
-                                      << std::endl;
-                        }*/
-                        //std::cout << fullSeed << " " << uint64_t(res & row_mask) << std::endl;
-
-                        //return fullSeed;
-                        return {fullSeed, res};
+                        }
                     }
+
+                    // check solvable
+                    matrixRow res = 0;
+                    bool fail = false;
+                    for (size_t rowindex = 0; rowindex < leafSize and not fail; ++rowindex) {
+                        matrixRow row = matrix[rowindex];
+                        bool s = sol[rowindex];
+                        if (row == 0) {
+                            if (s) {
+                                // contradiction
+                                fail = true;
+                                break;
+                            } else {
+                                // redundant
+                                continue;
+                            }
+                        }
+                        int pivotIndex = std::countr_zero(row);
+                        res = set_bit(res, pivotIndex, s);
+                    }
+
+                    if (fail) {
+                        continue;
+                    }
+                    return {fullSeed, res};
                 }
                 seedsCandidates.push_back(newCandidate);
             }
             return {0, 0};
         }
 
-
-        /*inline double calculateBijection(const std::vector<uint64_t> &keys) {
-            assert(matrix_width == 0);
-            size_t seed = findSeed(keys);
-            // Begin: Validity check
-#ifndef NDEBUG
-            std::vector<std::pair<uint64_t, uint8_t>> retrieval;
-            constructRetrieval(keys, seed, retrieval, leafSize);
-            verify(seed, keys, leafSize, retrieval);
-#endif
-            // End: Validity check
-            return seed;
-        }*/
-
         static std::string name() {
-            return std::string("ShockHash2")
+            return std::string("MorphisHash")
                    + (isolatedVertexFilter ? "Filter" : "")
                    + CandidateFinder::name();
         }
     };
-} // namespace shockhash
+} // namespace morphishash

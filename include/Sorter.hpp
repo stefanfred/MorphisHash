@@ -2,7 +2,7 @@
 
 #include <sux/function/RecSplit.hpp>
 #include <vector>
-#include "MorphisHash2FlatBase.h"
+#include "MorphisHashFlatBase.h"
 
 namespace morphishash {
     /**

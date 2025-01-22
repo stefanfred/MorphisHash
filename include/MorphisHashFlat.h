@@ -2,13 +2,13 @@
 
 #include <vector>
 #include <SimpleRibbon.h>
-#include <EliasFano.h>
-#include <MurmurHash64.h>
+#include <bytehamster/util/EliasFano.h>
+#include <bytehamster/util/MurmurHash64.h>
 #include <tlx/math/integer_log2.hpp>
-#include <MorphisHash2-internal.h>
-#include <MorphisHash2.h>
+#include <MorphisHash-internal.h>
+#include <MorphisHash.h>
 #include <sdsl/int_vector.hpp>
-#include "MorphisHash2FlatBase.h"
+#include "MorphisHashFlatBase.h"
 
 namespace morphishash {
 
@@ -33,9 +33,9 @@ namespace morphishash {
         return array;
     }
 
-    template<size_t k, bool useBurr, size_t RETRIEVAL_DIFF>
-    class MorphisHash2Flat {
-        using BaseCase = BijectionsShockHash2<k, morphishash::QuadSplitCandidateFinderList, true, useBurr,
+    template<size_t k, size_t RETRIEVAL_DIFF>
+    class MorphisHashFlat {
+        using BaseCase = BijectionsMorphisHash<k, morphishash::QuadSplitCandidateFinderList, true,
                 k - RETRIEVAL_DIFF>;
         static constexpr double OVERLOAD_FACTOR = 0.9;
         static constexpr size_t THRESHOLD_BITS = tlx::integer_log2_floor(k) - 1;
@@ -52,22 +52,20 @@ namespace morphishash {
 
         RiceBitVector<> solutions;
 
-        MorphisHash2<k, useBurr, RETRIEVAL_DIFF> fallbackPhf;
+        MorphisHash<k, RETRIEVAL_DIFF> fallbackPhf;
         size_t N;
         size_t nbuckets;
         pasta::BitVector freePositionsBv;
         pasta::FlatRankSelect <pasta::OptimizedFor::ONE_QUERIES> *freePositionsRankSelect = nullptr;
-        using Ribbon = SimpleRibbon<1, (k > 24) ? 128 : 64>;
-        Ribbon ribbon;
         size_t layers = 2;
     public:
-        explicit MorphisHash2Flat(const std::vector<std::string> &keys, size_t ignore, size_t ignore2)
-                : MorphisHash2Flat(keys) {
+        explicit MorphisHashFlat(const std::vector<std::string> &keys, size_t ignore, size_t ignore2)
+                : MorphisHashFlat(keys) {
             (void) ignore;
             (void) ignore2;
         }
 
-        explicit MorphisHash2Flat(const std::vector<std::string> &keys) {
+        explicit MorphisHashFlat(const std::vector<std::string> &keys) {
             N = keys.size();
             nbuckets = N / k;
             size_t keysInEndBucket = N - nbuckets * k;
@@ -77,8 +75,8 @@ namespace morphishash {
             std::vector<KeyInfo> hashes;
             hashes.reserve(keys.size());
             for (const std::string &key: keys) {
-                uint64_t mhc = ::util::MurmurHash64(key);
-                uint32_t bucket = ::util::fastrange32(mhc & 0xffffffff, bucketsThisLayer);
+                uint64_t mhc = ::bytehamster::util::MurmurHash64(key);
+                uint32_t bucket = ::bytehamster::util::fastrange32(mhc & 0xffffffff, bucketsThisLayer);
                 uint32_t threshold = mhc >> 32;
                 hashes.emplace_back(mhc, bucket, threshold);
             }
@@ -96,8 +94,8 @@ namespace morphishash {
                     }
                     // Rehash
                     for (auto &hash: hashes) {
-                        hash.mhc = ::util::remix(hash.mhc);
-                        hash.bucket = ::util::fastrange32(hash.mhc & 0xffffffff, bucketsThisLayer);
+                        hash.mhc = ::bytehamster::util::remix(hash.mhc);
+                        hash.bucket = ::bytehamster::util::fastrange32(hash.mhc & 0xffffffff, bucketsThisLayer);
                         hash.threshold = hash.mhc >> 32;
                     }
                 }
@@ -128,8 +126,8 @@ namespace morphishash {
             for (auto &hash: hashes) {
                 fallbackPhfContent.push_back(std::to_string(hash.mhc));
             }
-            //std::cout<<fallbackPhfContent.size()<<std::endl;
-            fallbackPhf = MorphisHash2<k, useBurr, RETRIEVAL_DIFF>(fallbackPhfContent, 2000, 1);
+
+            fallbackPhf = MorphisHash<k, RETRIEVAL_DIFF>(fallbackPhfContent, 2000, 1);
             size_t additionalFreePositions = hashes.size() - freePositions.size();
             size_t nbucketsHandled = layerBases.back();
             {
@@ -147,7 +145,7 @@ namespace morphishash {
             }
             freePositionsRankSelect = new pasta::FlatRankSelect<pasta::OptimizedFor::ONE_QUERIES>(freePositionsBv);
 
-            // Construct ShockHash within buckets
+            // Construct MorphisHash within buckets
             std::vector<std::vector<uint64_t>> bucketContents(nbuckets);
             std::vector<uint64_t> lastBucket;
             for (KeyInfo key: allHashes) {
@@ -161,12 +159,8 @@ namespace morphishash {
             std::vector<std::pair<uint64_t, uint8_t>> ribbonInput;
             RiceBitVector<>::Builder solBuilder;
             for (size_t i = 0; i < nbuckets; i++) {
-                //std::cout<<bucketContents.at(i).size()<<std::endl;
                 std::pair<uint64_t, __uint128_t> seed = BaseCase::findSeed(bucketContents.at(i));
-                if (useBurr)
-                    constructRetrieval(bucketContents.at(i), seed.first, ribbonInput, k);
-                else
-                    solBuilder.appendFixed128(seed.second, k - RETRIEVAL_DIFF);
+                solBuilder.appendFixed128(seed.second, k - RETRIEVAL_DIFF);
                 if (seed.first >= MAX_SEED || seed.first == SEED_FALLBACK_INDICATOR) {
                     seedsFallback.insert(std::make_pair(i, seed.first));
                     seed.first = SEED_FALLBACK_INDICATOR;
@@ -174,10 +168,7 @@ namespace morphishash {
                 setSeed(i, seed.first);
             }
             // Construct last bucket
-            if (useBurr)
-                ribbon = Ribbon(ribbonInput);
-            else
-                solutions = solBuilder.build();
+            solutions = solBuilder.build();
         }
 
         inline void setThreshold(size_t bucket, size_t value) {
@@ -242,7 +233,7 @@ namespace morphishash {
             return 8 * sizeof(*this)
                    + fallbackPhf.getBits()
                    + (freePositionsBv.size() + 8 * freePositionsRankSelect->space_usage())
-                   + (useBurr ? 8 * ribbon.sizeBytes() : solutions.getBits())
+                   + solutions.getBits()
                    + thresholdsAndSeeds.bit_size()
                    + 64 * seedsFallback.size();
         }
@@ -255,11 +246,11 @@ namespace morphishash {
                       << std::endl;
             std::cout << "Base case seeds: " << 1.0f * SEED_BITS / k << std::endl;
             std::cout << "Base case seeds overflow: " << 1.0f * seedsFallback.size() * 64 / N << std::endl;
-            std::cout << "Retrieval: " << (useBurr ? 8 * ribbon.sizeBytes() : solutions.getBits()) / N << std::endl;
+            std::cout << "Retrieval: " << solutions.getBits() / N << std::endl;
         }
 
         size_t operator()(const std::string &key) {
-            return operator()(::util::MurmurHash64(key));
+            return operator()(::bytehamster::util::MurmurHash64(key));
         }
 
         size_t operator()(const hash128_t &hash) {
@@ -275,22 +266,17 @@ namespace morphishash {
                 seed = seedsFallback.at(bucket);
             }
             size_t baseCase;
-            if (useBurr) {
-                size_t retrieved = ribbon.retrieve(hash);
-                baseCase = queryHash(seed, hash, retrieved, k);
+            size_t width = k > RETRIEVAL_DIFF ? (k - RETRIEVAL_DIFF) : 0;
+            if (width == 0) {
+                baseCase = sh2remix64(hash ^ seed) % k;
             } else {
-                size_t width = k > RETRIEVAL_DIFF ? (k - RETRIEVAL_DIFF) : 0;
-                if (width == 0) {
-                    baseCase = sh2remix64(hash ^ seed) % k;
-                } else {
-                    __uint128_t remixed = sh2remix128(hash ^ seed);
-                    RiceBitVector<>::Reader r = solutions.reader();
-                    r.toFixedPos(width, bucket);
-                    __uint128_t sol = r.readFixed128(width);
-                    __uint128_t row_mask = (__uint128_t(1) << (width)) - 1;
-                    uint64_t retrieved = parity(sol & row_mask & remixed);
-                    baseCase = queryHash(seed, hash, retrieved, k);
-                }
+                __uint128_t remixed = sh2remix128(hash ^ seed);
+                RiceBitVector<>::Reader r = solutions.reader();
+                r.toFixedPos(width, bucket);
+                __uint128_t sol = r.readFixed128(width);
+                __uint128_t row_mask = (__uint128_t(1) << (width)) - 1;
+                uint64_t retrieved = parity(sol & row_mask & remixed);
+                baseCase = queryHash(seed, hash, retrieved, k);
             }
             return bucket * k + baseCase;
         }
@@ -299,11 +285,11 @@ namespace morphishash {
         inline std::pair<size_t, size_t> evaluateKPerfect(uint64_t mhc) {
             for (size_t layer = 0; layer < layers; layer++) {
                 if (layer != 0) {
-                    mhc = ::util::remix(mhc);
+                    mhc = ::bytehamster::util::remix(mhc);
                 }
                 size_t base = layerBases.at(layer);
                 size_t layerSize = layerBases.at(layer + 1) - base;
-                uint32_t bucket = ::util::fastrange32(mhc & 0xffffffff, layerSize);
+                uint32_t bucket = ::bytehamster::util::fastrange32(mhc & 0xffffffff, layerSize);
                 uint32_t threshold = mhc >> 32;
                 auto [storedThreshold, storedSeed] = getThresholdAndSeed(base + bucket);
                 if (threshold <= THRESHOLD_MAPPING[storedThreshold]) {
@@ -319,4 +305,4 @@ namespace morphishash {
             return std::make_pair(bucket, storedSeed);
         }
     };
-} // Namespace shockhash
+} // Namespace morphishash

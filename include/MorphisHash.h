@@ -17,12 +17,12 @@
 #include <sux/util/Vector.hpp>
 #include <sux/function/DoubleEF.hpp>
 #include <sux/function/RiceBitVector.hpp>
-#include <sux/function/RecSplit.hpp>
 #include <Sorter.hpp>
 #include <bitset>
 #include "MorphisHash-precompiled.h"
 #include "MorphisHash-internal.h"
 #include "RiceBitVector.h"
+#include <sux/function/RecSplit.hpp>
 
 namespace morphishash {
     using namespace sux;
@@ -33,7 +33,6 @@ namespace morphishash {
     // Assumed *maximum* size of a bucket. Works with high probability up to average bucket size ~2000.
     static const int MAX_BUCKET_SIZE = 3000;
     static const int MAX_FANOUT = 32;
-    static const int MAX_LEAF_SIZE = 60;
 
     #if defined(STATS)
         static uint64_t bij_unary, bij_fixed;
@@ -345,7 +344,7 @@ namespace morphishash {
                         recSplit(bucket, temp, start + split, end, builder, unary, level + 1, tinyBinaryCuckooHashTable);
                 } else if (m > lower_aggr) { // 2nd aggregation level
                     const size_t fanout = uint16_t(m + lower_aggr - 1) / lower_aggr;
-                    size_t count[fanout]; // Note that we never read count[fanout-1]
+                    size_t count[MAX_FANOUT]; // Note that we never read count[fanout-1]
                     for (;;) {
                         memset(count, 0, sizeof count - sizeof *count);
                         for (size_t i = start; i < end; i++) {
@@ -383,7 +382,7 @@ namespace morphishash {
                         recSplit(bucket, temp, start + i, end, builder, unary, level + 1, tinyBinaryCuckooHashTable);
                 } else { // First aggregation level, m <= lower_aggr
                     const size_t fanout = uint16_t(m + _leaf - 1) / _leaf;
-                    size_t count[fanout]; // Note that we never read count[fanout-1]
+                    size_t count[MAX_FANOUT]; // Note that we never read count[fanout-1]
                     for (;;) {
                         memset(count, 0, sizeof count - sizeof *count);
                         for (size_t i = start; i < end; i++) {

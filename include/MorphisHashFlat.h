@@ -1,7 +1,6 @@
 #pragma once
 
 #include <vector>
-#include <SimpleRibbon.h>
 #include <bytehamster/util/EliasFano.h>
 #include <bytehamster/util/MurmurHash64.h>
 #include <tlx/math/integer_log2.hpp>

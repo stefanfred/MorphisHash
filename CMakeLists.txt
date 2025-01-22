@@ -34,9 +34,10 @@ if(NOT TARGET sdsl)
     target_include_directories(sdsl SYSTEM INTERFACE extlib/sdsl-lite/include)
 endif()
 
-if(NOT TARGET simpleRibbon)
+
+if(NOT TARGET ips2ra)
     set(IPS2RA_DISABLE_PARALLEL ON CACHE PATH "ips2ra's FindTBB greps a file that does not exist in recent TBB versions")
-    add_subdirectory(extlib/simpleRibbon SYSTEM EXCLUDE_FROM_ALL)
+    add_subdirectory(extlib/ips2ra SYSTEM)
     find_package(TBB)
     target_compile_options(ips2ra INTERFACE -D_REENTRANT)
     target_link_libraries(ips2ra INTERFACE pthread atomic TBB::tbb)
@@ -65,7 +66,7 @@ target_compile_options(MorphisHash2Precompiled PRIVATE $<$<COMPILE_LANGUAGE:CXX>
 add_library(MorphisHash INTERFACE)
 target_include_directories(MorphisHash INTERFACE include)
 target_compile_features(MorphisHash INTERFACE cxx_std_20)
-target_link_libraries(MorphisHash INTERFACE Sux SimpleRibbon Ips2raMorphisHashSorter ByteHamsterUtil MorphisHash2Precompiled sdsl)
+target_link_libraries(MorphisHash INTERFACE Sux Ips2raMorphisHashSorter ByteHamsterUtil MorphisHash2Precompiled sdsl)
 
 
 

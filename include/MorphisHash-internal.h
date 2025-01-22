@@ -547,61 +547,8 @@ namespace morphishash {
         return result;
     }
 
-    static void verify(size_t seed, const std::vector<uint64_t> &keys, size_t leafSize,
-                       std::vector<std::pair<uint64_t, uint8_t>> &retrieval) {
-        std::vector<bool> taken(leafSize, false);
-        for (uint64_t key: keys) {
-            size_t retrieved = ~0u;
-            for (auto &retr: retrieval) {
-                if (retr.first == key) {
-                    retrieved = retr.second;
-                }
-            }
-            if (retrieved == ~0u) {
-                throw std::logic_error("Not in retrieval");
-            }
-            size_t hashValue = queryHash(seed, key, retrieved, leafSize);
-            // size_t hashValue = hash(seed, key, 0);
-            if (taken[hashValue]) {
-                throw std::logic_error("Collision");
-            }
-            taken[hashValue] = true;
-        }
-    }
-
-    static inline void constructRetrieval(const std::vector<uint64_t> &keys, size_t seed,
-                                          std::vector<std::pair<uint64_t, uint8_t>> &retrieval, size_t leafSize) {
-
-        auto [seed1, seed2] = unpairTriangular(seed >> 12);
-        morphishash::TinyBinaryCuckooHashTable table(leafSize);
-        for (uint64_t key: keys) {
-            table.prepare(morphishash::HashedKey(key));
-        }
-        table.clearPlacement();
-        for (size_t k = 0; k < leafSize; k++) {
-            morphishash::TinyBinaryCuckooHashTable::CandidateCells candidateCells;
-            candidateCells.cell1 = queryCandidate(seed1, table.heap[k].hash.mhc, leafSize) + leafSize / 2;
-            candidateCells.cell2 = queryCandidate(seed2, table.heap[k].hash.mhc, leafSize);
-            if (!table.insert(&table.heap[k], candidateCells)) {
-                throw std::logic_error("Should be possible to construct");
-            }
-        }
-        for (size_t k = 0; k < leafSize; k++) {
-            size_t candidate2 = queryCandidate(seed2, table.heap[k].hash.mhc, leafSize);
-            if (table.cells[candidate2] == &table.heap[k]) {
-                retrieval.emplace_back(table.heap[k].hash.mhc, 1);
-            } else {
-                retrieval.emplace_back(table.heap[k].hash.mhc, 0);
-            }
-        }
-    }
-
-    static int parity(uint64_t val) {
-        return __builtin_parityll(val);
-    }
-
-    static int parity(__uint128_t val) {
-        return parity(uint64_t(val >> 64) ^ uint64_t(val));
+    static int inline parity(__uint128_t val) {
+        return __builtin_parityll(uint64_t(val >> 64) ^ uint64_t(val));
     }
 
     static uint64_t inline sh2remix64(uint64_t z) {
@@ -612,15 +559,6 @@ namespace morphishash {
 
     static __uint128_t inline sh2remix128(uint64_t z) {
         return (__uint128_t(sh2remix64(~z)) << 64) | sh2remix64(z);
-    }
-
-    template<bool bitMode128>
-    static std::conditional<bitMode128, __uint128_t, uint64_t>::type inline sh2remix(uint64_t z) {
-        if constexpr (bitMode128) {
-            return sh2remix128(z);
-        } else {
-            return sh2remix64(z);
-        }
     }
 
 
@@ -700,10 +638,6 @@ namespace morphishash {
                     for (; li < leafSize; li++) {
                         size_t end1 = newCandidateShifted.hashes[li];
                         size_t end2 = other.hashes[li];
-                        /*std::cout << keys[li] << " " << end1 << " " << end2 << " "
-                                  << (QuadSplitCandidateFinder::hash(keys[li], newCandidateShifted.seed, leafSize) +leafSize / 2) <<" "
-                                  << QuadSplitCandidateFinder::hash(keys[li], other.seed, leafSize)
-                                  << std::endl;*/
                         if (!unionFind.unionIsStillPseudoforest(end1, end2)) {
                             break;
                         }
@@ -728,8 +662,7 @@ namespace morphishash {
 
                     // insert keys
                     for (size_t i = 0; i < leafSize; i++) {
-                        //matrixRow hash = keys[i] & row_mask;
-                        matrixRow hash = sh2remix<bitMode128>(keys[i] ^ fullSeed) & row_mask;
+                        matrixRow hash = sh2remix128(keys[i] ^ fullSeed) & row_mask;
                         auto addCand = [&](size_t end, bool orientation) {
                             matrix[end] ^= hash;
                             if (!orientation)

@@ -80,17 +80,13 @@ void construct() {
 
     hashFunc.printBits();
 
-#ifdef SIMD
-    std::string method = "SIMD";
-#else
-    std::string method = "plain";
-#endif
+    std::string method;
     if (rotate) {
-        method += "Rotate";
+        method = "Rotate";
     } else if (morphisHash) {
-        method += "morphisHash";
+        method = "morphisHash";
     } else if (morphisHashflat) {
-        method += "morphisHashFlat";
+        method = "morphisHashFlat";
     }
     std::cout << "RESULT"
               << " method=" << method

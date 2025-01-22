@@ -5,9 +5,6 @@
 #include <bytehamster/util/Function.h>
 #include <bytehamster/util/MurmurHash64.h>
 #include <cstring>
-#ifdef SIMD
-#include "SimdUtils.h"
-#endif
 
 namespace morphishash {
 struct HashedKey {
@@ -147,24 +144,6 @@ class TinyBinaryCuckooHashTable {
             }*/
             return {hash1, hash2};
         }
-
-#ifdef SIMD
-        typedef struct {
-            FullVecUq cell1;
-            FullVecUq cell2;
-        } CandidateCellsSIMD;
-
-        static inline CandidateCellsSIMD getCandidateCellsSIMD(FullVecUq valueAndSeed, uint64_t range) {
-            const FullVecUq remixed = remixV(valueAndSeed);
-            const FullVecUq hash1 = remap32V(remixed, range / 2);
-            const FullVecUq hash2 = remap32V(remixed >> 32, (range + 1) / 2) + range / 2;
-
-            assert(TinyBinaryCuckooHashTable::getCandidateCells(HashedKey(valueAndSeed.extract(0)), 0, range).cell1 == hash1.extract(0));
-            assert(TinyBinaryCuckooHashTable::getCandidateCells(HashedKey(valueAndSeed.extract(0)), 0, range).cell2 == hash2.extract(0));
-
-            return {hash1, hash2};
-        }
-#endif
 
         bool insert(TableEntry *entry) {
             return insert(entry, getCandidateCells(entry->hash, seed, numEntries));

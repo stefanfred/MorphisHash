@@ -32,7 +32,7 @@ namespace morphishash {
         return array;
     }
 
-    template<size_t k, size_t RETRIEVAL_DIFF>
+    template<size_t k, size_t RETRIEVAL_DIFF, size_t EXTRA_SEED_BITS = 3>
     class MorphisHashFlat {
         using BaseCase = BijectionsMorphisHash<k, morphishash::QuadSplitCandidateFinderList, true,
                 k - RETRIEVAL_DIFF>;
@@ -41,8 +41,8 @@ namespace morphishash {
         static constexpr size_t THRESHOLD_RANGE = 1ul << THRESHOLD_BITS;
         static constexpr std::array<uint32_t, THRESHOLD_RANGE> THRESHOLD_MAPPING = _fill_mapping<THRESHOLD_RANGE>();
         // static constexpr size_t SEED_BITS = std::ceil(0.442 * k - 0.2 + double(RETRIEVAL_DIFF)*0.65);
-        static constexpr size_t SEED_BITS =
-                bij_memoMorphis[RETRIEVAL_DIFF][k] + 4 - (RETRIEVAL_DIFF <= k ? k - RETRIEVAL_DIFF : 0);
+        static constexpr size_t WIDTH = (RETRIEVAL_DIFF <= k ? k - RETRIEVAL_DIFF : 0);
+        static constexpr size_t SEED_BITS = bij_memoMorphis[RETRIEVAL_DIFF][k] + EXTRA_SEED_BITS - WIDTH;
         static constexpr size_t MAX_SEED = 1ul << SEED_BITS;
         static constexpr size_t SEED_FALLBACK_INDICATOR = 0;
         sdsl::int_vector<0> thresholdsAndSeeds;
@@ -68,8 +68,9 @@ namespace morphishash {
             N = keys.size();
             nbuckets = N / k;
             size_t keysInEndBucket = N - nbuckets * k;
-            //std::cout<<N<<" "<<nbuckets<<" "<<keysInEndBucket<<std::endl;
-            size_t bucketsThisLayer = std::max(1ul, (size_t) std::ceil(OVERLOAD_FACTOR * nbuckets));
+            size_t
+                    bucketsThisLayer = std::max(1ul, (size_t)
+            std::ceil(OVERLOAD_FACTOR * nbuckets));
             std::vector<size_t> freePositions;
             std::vector<KeyInfo> hashes;
             hashes.reserve(keys.size());
@@ -265,15 +266,14 @@ namespace morphishash {
                 seed = seedsFallback.at(bucket);
             }
             size_t baseCase;
-            size_t width = k > RETRIEVAL_DIFF ? (k - RETRIEVAL_DIFF) : 0;
-            if (width == 0) {
+            if constexpr (WIDTH == 0) {
                 baseCase = sh2remix64(hash ^ seed) % k;
             } else {
                 __uint128_t remixed = sh2remix128(hash ^ seed);
                 RiceBitVector<>::Reader r = solutions.reader();
-                r.toFixedPos(width, bucket);
-                __uint128_t sol = r.readFixed128(width);
-                __uint128_t row_mask = (__uint128_t(1) << (width)) - 1;
+                r.toFixedPos(WIDTH, bucket);
+                __uint128_t sol = r.readFixed128(WIDTH);
+                constexpr __uint128_t row_mask = (__uint128_t(1) << (WIDTH)) - 1;
                 uint64_t retrieved = parity(sol & row_mask & remixed);
                 baseCase = queryHash(seed, hash, retrieved, k);
             }

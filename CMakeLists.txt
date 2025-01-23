@@ -83,6 +83,8 @@ if(PROJECT_IS_TOP_LEVEL)
     add_executable(Benchmark benchmark/benchmark_construction.cpp)
     target_link_libraries(Benchmark PUBLIC BenchmarkUtils MorphisHash)
 
+    add_executable(Playground benchmark/playground.cpp)
+    target_link_libraries(Playground PUBLIC BenchmarkUtils MorphisHash)
 
     add_executable(NumHashEvals benchmark/numHashEvals.cpp)
     target_link_libraries(NumHashEvals PUBLIC BenchmarkUtils MorphisHash)

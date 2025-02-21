@@ -111,7 +111,7 @@ void testRotationFitting(size_t l) {
 }
 
 void testBruteForce(size_t l) {
-    size_t numIterations = size_t(5e9 / pow(2.71, double(l)));
+    auto numIterations = size_t(5e10 / pow(2.71, double(l)));
     if (numIterations < 4) {
         return;
     }
@@ -160,7 +160,7 @@ void testBruteForce(size_t l) {
 
 void testBipMorphisHash(size_t l, size_t w) {
     assert(l < 120);
-    size_t numIterations = 2 + size_t(1e8 / pow(1.166, double(l)));
+    size_t numIterations = 2 + size_t(1e9 / pow(1.166, double(l)));
     if (numIterations < 4) {
         return;
     }

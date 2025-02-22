@@ -29,7 +29,7 @@ int main() {
             for (size_t iter = 0; iter < iters; ++iter) {
                 std::vector<uint64_t> keys;
                 for (size_t i = 0; i < l; i++) {
-                    keys.emplace_back(bytehamster::util::MurmurHash64(std::to_string(id) +" "+std::to_string(i) + " " + std::to_string(l)));
+                    keys.emplace_back(bytehamster::util::MurmurHash64(std::to_string(id) +" "+std::to_string(id) +" "+std::to_string(i) + " " + std::to_string(l)));
                 }
                 std::pair<uint64_t, __uint128_t> seed = morphishash::morphisHashconstruct(l, l, keys);
                 counts+=seed.first;

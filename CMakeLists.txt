@@ -89,6 +89,9 @@ if(PROJECT_IS_TOP_LEVEL)
     add_executable(NumHashEvals benchmark/numHashEvals.cpp)
     target_link_libraries(NumHashEvals PUBLIC BenchmarkUtils MorphisHash)
 
+    add_executable(ComponentCount benchmark/numComponents.cpp)
+    target_link_libraries(ComponentCount PUBLIC BenchmarkUtils MorphisHash)
+
     add_executable(GolombMemoTuner benchmark/golombMemoTuner.cpp)
     target_link_libraries(GolombMemoTuner PUBLIC MorphisHash BenchmarkUtils)
 endif()

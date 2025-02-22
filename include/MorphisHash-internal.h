@@ -565,6 +565,9 @@ namespace morphishash {
     static constexpr size_t MAX_LEAF_SIZE = 106;
     static constexpr size_t MAX_DIFF = 7;
 
+
+#define RETURN_COMP_CNT
+
 /**
  * MorphisHash base case.
  * Note that while this can be used with uneven leaf sizes, it achieves suboptimal space and time.
@@ -664,7 +667,11 @@ namespace morphishash {
                     for (size_t i = 0; i < leafSize; i++) {
                         matrixRow hash = sh2remix128(keys[i] ^ fullSeed) & row_mask;
                         auto addCand = [&](size_t end, bool orientation) {
+#ifdef RETURN_COMP_CNT
+                            matrix[i]^=matrixRow(1)<<end;
+#else
                             matrix[end] ^= hash;
+#endif
                             if (!orientation)
                                 sol[end].flip();
                         };
@@ -672,7 +679,9 @@ namespace morphishash {
                         addCand(other.hashes[i], true);
                     }
 
-
+#ifdef RETURN_COMP_CNT
+                    size_t comCount=0;
+#endif
                     // gauss
                     std::bitset<leafSize> usedrow{};
                     for (size_t coloumn = 0; coloumn < matrix_width; ++coloumn) {
@@ -685,6 +694,9 @@ namespace morphishash {
                         }
                         if (pivotrowindex == leafSize) {
                             // zero coloumn
+#ifdef RETURN_COMP_CNT
+                            comCount++;
+#endif
                             continue;
                         }
                         usedrow[pivotrowindex] = true;
@@ -699,6 +711,10 @@ namespace morphishash {
                             }
                         }
                     }
+
+#ifdef RETURN_COMP_CNT
+                    return {comCount,0};
+#endif
 
                     // check solvable
                     matrixRow res = 0;

@@ -5,9 +5,8 @@ namespace morphishash {
 
     template<size_t I, size_t W>
     std::pair<uint64_t, __uint128_t> construct(std::vector<uint64_t> &leafKeys) {
-        using MH = std::conditional_t<I < SockHash2SeedFinderLeafSizeThreshold,
-                BijectionsMorphisHash<I, BasicSeedCandidateFinder::Finder, true, W>,
-                BijectionsMorphisHash<I, QuadSplitCandidateFinderList, true, W>>;
+        using MH =
+                BijectionsMorphisHash<I, BasicSeedCandidateFinder::Finder, true, W>;
         std::pair<uint64_t, __uint128_t> x = MH::findSeed(leafKeys);
         return x;
     }

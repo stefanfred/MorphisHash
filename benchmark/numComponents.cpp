@@ -18,7 +18,7 @@
 
 int main() {
     size_t maxLeaf = 70;
-    size_t threadscnt = 128;
+    size_t threadscnt = 32;
     size_t iters = 10000;
     std::vector<std::vector<size_t>> allcounts;
     allcounts.resize(threadscnt);
@@ -30,7 +30,7 @@ int main() {
                 std::vector<uint64_t> keys;
                 for (size_t i = 0; i < l; i++) {
                     keys.emplace_back(bytehamster::util::MurmurHash64(
-                            std::to_string(id) + " " + std::to_string(id) + " " + std::to_string(i) + " " +
+                            std::to_string(iter) + " " + std::to_string(id) + " " + std::to_string(i) + " " +
                             std::to_string(l)));
                 }
                 std::pair<uint64_t, __uint128_t> seed = morphishash::morphisHashconstruct(l, l, keys);

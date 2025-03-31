@@ -1,4 +1,4 @@
-cmake_minimum_required (VERSION 3.25)
+cmake_minimum_required (VERSION 3.25...4.0)
 project(MorphisHash
         LANGUAGES CXX)
 
@@ -25,15 +25,6 @@ if(NOT TARGET tlx)
     set(TLX_INSTALL_INCLUDE_DIR tlx CACHE PATH "Workaround for TLX breaking the first cmake call")
     add_subdirectory(extlib/tlx SYSTEM EXCLUDE_FROM_ALL)
 endif()
-
-if(NOT TARGET sdsl)
-    add_subdirectory(extlib/sdsl-lite/external SYSTEM EXCLUDE_FROM_ALL)
-    add_subdirectory(extlib/sdsl-lite/include SYSTEM EXCLUDE_FROM_ALL)
-    add_subdirectory(extlib/sdsl-lite/lib SYSTEM EXCLUDE_FROM_ALL)
-    target_compile_options(sdsl PRIVATE -w)
-    target_include_directories(sdsl SYSTEM INTERFACE extlib/sdsl-lite/include)
-endif()
-
 
 if(NOT TARGET ips2ra)
     set(IPS2RA_DISABLE_PARALLEL ON CACHE PATH "ips2ra's FindTBB greps a file that does not exist in recent TBB versions")
@@ -66,7 +57,7 @@ target_compile_options(MorphisHash2Precompiled PRIVATE $<$<COMPILE_LANGUAGE:CXX>
 add_library(MorphisHash INTERFACE)
 target_include_directories(MorphisHash INTERFACE include)
 target_compile_features(MorphisHash INTERFACE cxx_std_20)
-target_link_libraries(MorphisHash INTERFACE Sux Ips2raMorphisHashSorter ByteHamsterUtil MorphisHash2Precompiled sdsl)
+target_link_libraries(MorphisHash INTERFACE Sux Ips2raMorphisHashSorter ByteHamsterUtil MorphisHash2Precompiled)
 
 
 

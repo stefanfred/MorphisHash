@@ -61,8 +61,8 @@ void dispatchWidth() {
 
 template<size_t leafSize, size_t width>
 using MorphisHash = std::conditional_t<(leafSize >= 10),
-        morphishash::BijectionsMorphisHash<leafSize, morphishash::QuadSplitCandidateFinderBuckets, true, false, width>,
-        morphishash::BijectionsMorphisHash<leafSize, morphishash::BasicSeedCandidateFinder::Finder, true, false, width>>;
+        morphishash::BijectionsMorphisHash<leafSize, morphishash::QuadSplitCandidateFinderBuckets, true, width>,
+        morphishash::BijectionsMorphisHash<leafSize, morphishash::BasicSeedCandidateFinder::Finder, true, width>>;
 
 int main() {
     dispatchWidth<MorphisHash, 0>();

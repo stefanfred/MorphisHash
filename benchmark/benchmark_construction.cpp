@@ -118,9 +118,9 @@ void dispatchLeafSize() {
     if constexpr (I <= 1) {
         std::cerr << "The leafSize " << leafSize << " was not compiled into this binary." << std::endl;
     } else if (I == leafSize) {
-        dispatchWidth<HashFunc, I, std::min(morphishash::MAX_DIFF, I)>();
+        dispatchWidth<HashFunc, I, std::min(5ul, I)>();
     } else {
-        dispatchLeafSize<HashFunc, I - 1>();
+        dispatchLeafSize<HashFunc, I - 2>();
     }
 }
 

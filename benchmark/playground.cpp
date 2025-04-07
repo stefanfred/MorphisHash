@@ -10,7 +10,7 @@
 
 #define DO_NOT_OPTIMIZE(value) asm volatile("" : : "r,m"(value) : "memory")
 
-size_t numObjects = 1e7;
+size_t numObjects = 1e8;
 size_t numQueries = 1e8;
 size_t bucketSize = 2000;
 size_t threads = 8;
@@ -91,5 +91,5 @@ void construct() {
 }
 
 int main() {
-    construct<50,2,1>();
+    construct<20,2,3>();
 }

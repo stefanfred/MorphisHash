@@ -152,7 +152,7 @@ namespace morphishash {
             std::vector<std::vector<uint64_t>> bucketContents(nbuckets);
             std::vector<uint64_t> lastBucket;
             for (KeyInfo key: allHashes) {
-                size_t bucket = get<0>(evaluateKPerfect(key.mhc, thresholds));
+                size_t bucket = get<0>(evaluateKPerfect(key.mhc, &thresholds));
                 if (bucket >= nbuckets) {
                     lastBucket.push_back(key.mhc);
                 } else {
@@ -242,7 +242,6 @@ namespace morphishash {
                       << std::endl;
             std::cout << "Base case seeds: " << 1.0f * SEED_BITS / k << std::endl;
             std::cout << "Base case seeds overflow: " << 1.0f * seedsFallback.size() * 64 / N << std::endl;
-            std::cout << "Retrieval: " << bucketData.getBits() / N << std::endl;
         }
 
         size_t operator()(const std::string &key) {
@@ -254,7 +253,7 @@ namespace morphishash {
         }
 
         __attribute_noinline__ size_t operator()(uint64_t hash) {
-            auto [bucket, seed, sol] = evaluateKPerfect(hash, {});
+            auto [bucket, seed, sol] = evaluateKPerfect(hash, nullptr);
             if (bucket >= nbuckets) {
                 return bucket; // N that are not multiples of k
             }
@@ -274,7 +273,7 @@ namespace morphishash {
         }
 
         /** Returns bucket and seed */
-        inline std::tuple<size_t, size_t, __uint128_t> evaluateKPerfect(uint64_t mhc, const std::optional<const bytehamster::util::IntVector<THRESHOLD_BITS>> &constructThresholds) {
+        inline std::tuple<size_t, size_t, __uint128_t> evaluateKPerfect(uint64_t mhc, bytehamster::util::IntVector<THRESHOLD_BITS> *constructThresholds) {
             for (size_t layer = 0; layer < layers; layer++) {
                 if (layer != 0) {
                     mhc = ::bytehamster::util::remix(mhc);
@@ -283,7 +282,7 @@ namespace morphishash {
                 size_t layerSize = layerBases.at(layer + 1) - base;
                 uint32_t bucket = ::bytehamster::util::fastrange32(mhc & 0xffffffff, layerSize);
                 uint32_t threshold = mhc >> 32;
-                if(constructThresholds.has_value()) {
+                if(constructThresholds) {
                     if (threshold <= THRESHOLD_MAPPING[constructThresholds->at(base+bucket)]) {
                         return {base+bucket, 0, 0};
                     }
@@ -299,7 +298,7 @@ namespace morphishash {
             if (bucket >= nbuckets) { // Last half-filled bucket
                 return {bucket - nbuckets + k * nbuckets, 1,0};
             }
-            if(constructThresholds.has_value()) {
+            if(constructThresholds) {
                 return {bucket,0,0};
             } else {
                 auto [_, storedSeed, sol] = getThresholdAndSeedAndRetrieval(bucket);

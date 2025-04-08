@@ -91,5 +91,22 @@ void construct() {
 }
 
 int main() {
-    construct<80,2,3>();
+    construct<50,2,1>();
+    construct<50,2,2>();
+    construct<50,2,3>();
+
+
+    construct<50,6,1>();
+    construct<50,6,2>();
+    construct<50,6,3>();
+
+
+    construct<80,3,1>();
+    construct<80,3,2>();
+    construct<80,3,3>();
+
+
+    construct<80,6,1>();
+    construct<80,6,2>();
+    construct<80,6,3>();
 }

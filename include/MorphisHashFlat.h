@@ -10,8 +10,6 @@
 #include <bytehamster/util/IntVector.h>
 #include "MorphisHashFlatBase.h"
 
-#include "BitVec.h"
-
 namespace morphishash {
 
     template<size_t THRESHOLD_RANGE>
@@ -43,21 +41,22 @@ namespace morphishash {
         static constexpr size_t THRESHOLD_BITS = tlx::integer_log2_floor(k) - 1;
         static constexpr size_t THRESHOLD_RANGE = 1ul << THRESHOLD_BITS;
         static constexpr std::array<uint32_t, THRESHOLD_RANGE> THRESHOLD_MAPPING = _fill_mapping<THRESHOLD_RANGE>();
+        // static constexpr size_t SEED_BITS = std::ceil(0.442 * k - 0.2 + double(RETRIEVAL_DIFF)*0.65);
         static constexpr size_t WIDTH = (RETRIEVAL_DIFF <= k ? k - RETRIEVAL_DIFF : 0);
         static constexpr size_t SEED_BITS = bij_memoMorphis[RETRIEVAL_DIFF][k] + EXTRA_SEED_BITS - WIDTH;
         static constexpr size_t MAX_SEED = 1ul << SEED_BITS;
         static constexpr size_t SEED_FALLBACK_INDICATOR = 0;
-        static constexpr size_t BUCKET_DATA_BITS = THRESHOLD_BITS + SEED_BITS + WIDTH;
+        bytehamster::util::IntVector<THRESHOLD_BITS + SEED_BITS> thresholdsAndSeeds;
         std::map<size_t, size_t> seedsFallback;
         std::vector<size_t> layerBases;
 
-        BitVec bucketData;
+        RiceBitVector<> solutions;
 
         MorphisHash<k, RETRIEVAL_DIFF> fallbackPhf;
         size_t N;
         size_t nbuckets;
         pasta::BitVector freePositionsBv;
-        pasta::FlatRankSelect<pasta::OptimizedFor::ONE_QUERIES> *freePositionsRankSelect = nullptr;
+        pasta::FlatRankSelect <pasta::OptimizedFor::ONE_QUERIES> *freePositionsRankSelect = nullptr;
         size_t layers = 2;
     public:
         explicit MorphisHashFlat(const std::vector<std::string> &keys, size_t ignore, size_t ignore2)
@@ -69,11 +68,10 @@ namespace morphishash {
         explicit MorphisHashFlat(const std::vector<std::string> &keys) {
             N = keys.size();
             nbuckets = N / k;
-            bucketData = BitVec(nbuckets * BUCKET_DATA_BITS);
             size_t keysInEndBucket = N - nbuckets * k;
             size_t
                     bucketsThisLayer = std::max(1ul, (size_t)
-                    std::ceil(OVERLOAD_FACTOR * nbuckets));
+            std::ceil(OVERLOAD_FACTOR * nbuckets));
             std::vector<size_t> freePositions;
             std::vector<KeyInfo> hashes;
             hashes.reserve(keys.size());
@@ -85,8 +83,7 @@ namespace morphishash {
             }
             std::vector<KeyInfo> allHashes = hashes;
             layerBases.push_back(0);
-
-            bytehamster::util::IntVector<THRESHOLD_BITS> thresholds(nbuckets);
+            thresholdsAndSeeds.resize(nbuckets);
             for (size_t layer = 0; layer < 2; layer++) {
                 size_t layerBase = layerBases.back();
                 if (layer != 0) {
@@ -111,8 +108,7 @@ namespace morphishash {
                 for (size_t i = 0; i < hashes.size(); i++) {
                     size_t bucket = hashes.at(i).bucket;
                     while (bucket != previousBucket) {
-                        flushBucket(layerBase, bucketStart, i, previousBucket, hashes, bumpedKeys, freePositions,
-                                    thresholds);
+                        flushBucket(layerBase, bucketStart, i, previousBucket, hashes, bumpedKeys, freePositions);
                         previousBucket++;
                         bucketStart = i;
                     }
@@ -120,7 +116,7 @@ namespace morphishash {
                 // Last bucket
                 while (previousBucket < bucketsThisLayer) {
                     flushBucket(layerBase, bucketStart, hashes.size(), previousBucket, hashes, bumpedKeys,
-                                freePositions, thresholds);
+                                freePositions);
                     previousBucket++;
                     bucketStart = hashes.size();
                 }
@@ -154,32 +150,47 @@ namespace morphishash {
             std::vector<std::vector<uint64_t>> bucketContents(nbuckets);
             std::vector<uint64_t> lastBucket;
             for (KeyInfo key: allHashes) {
-                size_t bucket = get<0>(evaluateKPerfect(key.mhc, &thresholds));
+                size_t bucket = evaluateKPerfect(key.mhc).first;
                 if (bucket >= nbuckets) {
                     lastBucket.push_back(key.mhc);
                 } else {
                     bucketContents.at(bucket).push_back(key.mhc);
                 }
             }
+            std::vector<std::pair<uint64_t, uint8_t>> ribbonInput;
+            RiceBitVector<>::Builder solBuilder;
             for (size_t i = 0; i < nbuckets; i++) {
                 std::pair<uint64_t, __uint128_t> seed = BaseCase::findSeed(bucketContents.at(i));
+                solBuilder.appendFixed128(seed.second, k - RETRIEVAL_DIFF);
                 if (seed.first >= MAX_SEED || seed.first == SEED_FALLBACK_INDICATOR) {
                     seedsFallback.insert(std::make_pair(i, seed.first));
                     seed.first = SEED_FALLBACK_INDICATOR;
                 }
-
-                bucketData.set<THRESHOLD_BITS>(i * BUCKET_DATA_BITS, thresholds.at(i));
-                bucketData.set<SEED_BITS>(i * BUCKET_DATA_BITS + THRESHOLD_BITS, seed.first);
-                bucketData.set<WIDTH>(i * BUCKET_DATA_BITS + THRESHOLD_BITS + SEED_BITS, seed.second);
+                setSeed(i, seed.first);
             }
+            // Construct last bucket
+            solutions = solBuilder.build();
         }
 
-        inline std::tuple<size_t, size_t, __uint128_t> getThresholdAndSeedAndRetrieval(size_t bucket) {
-            size_t threshold2 = bucketData.at<THRESHOLD_BITS>(bucket * BUCKET_DATA_BITS);
-            size_t seed2 = bucketData.at<SEED_BITS>(bucket * BUCKET_DATA_BITS + THRESHOLD_BITS);
-            __uint128_t sol2  = bucketData.at<WIDTH>(bucket * BUCKET_DATA_BITS + THRESHOLD_BITS + SEED_BITS);
+        inline void setThreshold(size_t bucket, size_t value) {
+            uint64_t thresholdAndSeed = thresholdsAndSeeds.at(bucket);
+            thresholdAndSeed &= ~((1ul << THRESHOLD_BITS) - 1);
+            thresholdAndSeed |= value;
+            thresholdsAndSeeds.set(bucket, thresholdAndSeed);
+        }
 
-            return {threshold2, seed2, sol2};
+        inline void setSeed(size_t bucket, size_t value) {
+            uint64_t thresholdAndSeed = thresholdsAndSeeds.at(bucket);
+            thresholdAndSeed &= ~(((1ul << SEED_BITS) - 1) << THRESHOLD_BITS);
+            thresholdAndSeed |= value << THRESHOLD_BITS;
+            thresholdsAndSeeds.set(bucket, thresholdAndSeed);
+        }
+
+        inline std::pair<size_t, size_t> getThresholdAndSeed(size_t bucket) {
+            uint64_t thresholdAndSeed = thresholdsAndSeeds.at(bucket);
+            size_t seed = thresholdAndSeed >> THRESHOLD_BITS;
+            size_t threshold = thresholdAndSeed & (THRESHOLD_RANGE - 1);
+            return std::make_pair(threshold, seed);
         }
 
         uint32_t compact_threshold(uint32_t threshold) {
@@ -194,11 +205,11 @@ namespace morphishash {
 
         void flushBucket(size_t layerBase, size_t bucketStart, size_t i, size_t bucketIdx,
                          std::vector<KeyInfo> &hashes, std::vector<KeyInfo> &bumpedKeys,
-                         std::vector<size_t> &freePositions, bytehamster::util::IntVector<THRESHOLD_BITS> &thresholds) {
+                         std::vector<size_t> &freePositions) {
             size_t bucketSize = i - bucketStart;
             if (bucketSize <= k) {
                 size_t threshold = THRESHOLD_RANGE - 1;
-                thresholds.set(layerBase + bucketIdx, threshold);
+                setThreshold(layerBase + bucketIdx, threshold);
                 for (size_t b = bucketSize; b < k; b++) {
                     freePositions.push_back(layerBase + bucketIdx);
                 }
@@ -210,7 +221,7 @@ namespace morphishash {
                     // Needs to bump more
                     threshold--;
                 }
-                thresholds.set(layerBase + bucketIdx, threshold);
+                setThreshold(layerBase + bucketIdx, threshold);
                 uint32_t uncompressedThreshold = THRESHOLD_MAPPING[threshold];
                 for (size_t l = 0; l < bucketSize; l++) {
                     if (hashes.at(bucketStart + l).threshold > uncompressedThreshold) {
@@ -228,7 +239,8 @@ namespace morphishash {
             return 8 * sizeof(*this)
                    + fallbackPhf.getBits()
                    + (freePositionsBv.size() + 8 * freePositionsRankSelect->space_usage())
-                   + bucketData.dataSizeBytes() * 8
+                   + solutions.getBits()
+                   + 8 * thresholdsAndSeeds.dataSizeBytes()
                    + 64 * seedsFallback.size();
         }
 
@@ -240,6 +252,7 @@ namespace morphishash {
                       << std::endl;
             std::cout << "Base case seeds: " << 1.0f * SEED_BITS / k << std::endl;
             std::cout << "Base case seeds overflow: " << 1.0f * seedsFallback.size() * 64 / N << std::endl;
+            std::cout << "Retrieval: " << solutions.getBits() / N << std::endl;
         }
 
         size_t operator()(const std::string &key) {
@@ -251,7 +264,7 @@ namespace morphishash {
         }
 
         __attribute_noinline__ size_t operator()(uint64_t hash) {
-            auto [bucket, seed, sol] = evaluateKPerfect(hash, nullptr);
+            auto [bucket, seed] = evaluateKPerfect(hash);
             if (bucket >= nbuckets) {
                 return bucket; // N that are not multiples of k
             }
@@ -263,6 +276,9 @@ namespace morphishash {
                 baseCase = sh2remix64(hash ^ seed) % k;
             } else {
                 __uint128_t remixed = sh2remix128(hash ^ seed);
+                RiceBitVector<>::Reader r = solutions.reader();
+                r.toFixedPos(WIDTH, bucket);
+                __uint128_t sol = r.readFixed128(WIDTH);
                 constexpr __uint128_t row_mask = (__uint128_t(1) << (WIDTH)) - 1;
                 uint64_t retrieved = parity(sol & row_mask & remixed);
                 baseCase = queryHash(seed, hash, retrieved, k);
@@ -271,8 +287,7 @@ namespace morphishash {
         }
 
         /** Returns bucket and seed */
-        inline std::tuple<size_t, size_t, __uint128_t>
-        evaluateKPerfect(uint64_t mhc, bytehamster::util::IntVector<THRESHOLD_BITS> *constructThresholds) {
+        inline std::pair<size_t, size_t> evaluateKPerfect(uint64_t mhc) {
             for (size_t layer = 0; layer < layers; layer++) {
                 if (layer != 0) {
                     mhc = ::bytehamster::util::remix(mhc);
@@ -281,28 +296,18 @@ namespace morphishash {
                 size_t layerSize = layerBases.at(layer + 1) - base;
                 uint32_t bucket = ::bytehamster::util::fastrange32(mhc & 0xffffffff, layerSize);
                 uint32_t threshold = mhc >> 32;
-                if (constructThresholds) {
-                    if (threshold <= THRESHOLD_MAPPING[constructThresholds->at(base + bucket)]) {
-                        return {base + bucket, 0, 0};
-                    }
-                } else {
-                    auto [storedThreshold, storedSeed, sol] = getThresholdAndSeedAndRetrieval(base + bucket);
-                    if (threshold <= THRESHOLD_MAPPING[storedThreshold]) {
-                        return {base + bucket, storedSeed, sol};
-                    }
+                auto [storedThreshold, storedSeed] = getThresholdAndSeed(base + bucket);
+                if (threshold <= THRESHOLD_MAPPING[storedThreshold]) {
+                    return std::make_pair(base + bucket, storedSeed);
                 }
             }
             size_t phf = fallbackPhf(std::to_string(mhc));
             size_t bucket = freePositionsRankSelect->select1(phf + 1) - phf;
             if (bucket >= nbuckets) { // Last half-filled bucket
-                return {bucket - nbuckets + k * nbuckets, 1, 0};
+                return std::make_pair(bucket - nbuckets + k * nbuckets, 1);
             }
-            if (constructThresholds) {
-                return {bucket, 0, 0};
-            } else {
-                auto [_, storedSeed, sol] = getThresholdAndSeedAndRetrieval(bucket);
-                return {bucket, storedSeed, sol};
-            }
+            auto [_, storedSeed] = getThresholdAndSeed(bucket);
+            return std::make_pair(bucket, storedSeed);
         }
     };
 } // Namespace morphishash
